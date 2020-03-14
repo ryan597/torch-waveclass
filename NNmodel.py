@@ -33,54 +33,21 @@ tf.random.set_seed(2020)
 
 # Create the data pipeline to load images and labels
 
-def get_image_generators(IMG_SIZE, 
-                         BATCH_SIZE,
-                         VAL_BATCH_SIZE
-                         ):
-    print("\ncreating image generators...")
-    train_datagen = ImageDataGenerator(samplewise_center=True,
-                                       samplewise_std_normalization=True,
-                                       rotation_range=10,
-                                       zoom_range=[0.8, 1.2],
-                                      )
- 
-    print("fetching images for training...")
-    train_data = train_datagen.flow_from_directory("train",
-                                        target_size=(IMG_SIZE, IMG_SIZE),
-                                        color_mode="rgb",
-                                        batch_size=BATCH_SIZE,
-                                        class_mode="categorical",
-                                        #classes=['nonbreaking', 'plunge', 'spill'],
-                                        shuffle=True,
-                                        seed=2018)
+def image_generator(PATH, IMG_SIZE=96, BATCH_SIZE=32, SHUFFLE=False, center=False, std_norm=False, rotation=0, zoom=[1, 1]):
+    print(f"\ncreating image generator for {PATH}...")
+    datagen = ImageDataGenerator(samplewise_center=center, 
+                                samplewise_std_normalization=std_norm, 
+                                rotation_range=rotation,
+                                zoom_range=zoom)
+    data = datagen.flow_from_directory(PATH,
+                                    target_size=(IMG_SIZE, IMG_SIZE),
+                                    color_mode="rgb",
+                                    batch_size=BATCH_SIZE,
+                                    class_mode="categorical",
+                                    shuffle=SHUFFLE,
+                                    seed=42)
+    return data
 
-    print("\nfetching images for validation...")
-    valid_datagen = ImageDataGenerator(samplewise_center=True,
-                                       samplewise_std_normalization=True
-                                       )
-    valid_data = valid_datagen.flow_from_directory("valid",
-                                        target_size=(IMG_SIZE, IMG_SIZE),
-                                        color_mode="rgb",
-                                        batch_size=VAL_BATCH_SIZE,
-                                        class_mode="categorical",
-                                        #classes=['nonbreaking', 'plunge', 'spill'],
-                                        shuffle=False,
-                                        seed=2018)
-
-    print("\nfetching images for testing...")
-    test_datagen = ImageDataGenerator(samplewise_center=True,
-                                      samplewise_std_normalization=True
-                                      )
-    test_data = test_datagen.flow_from_directory("test",
-                                        target_size=(IMG_SIZE, IMG_SIZE),
-                                        color_mode="rgb",
-                                        batch_size=1,
-                                        class_mode='categorical',
-                                        #classes=['nonbreaking', 'plunge', 'spill'],
-                                        shuffle=False,
-                                        seed=2018)
-
-    return train_data, valid_data, test_data
 
 def lr_schedule(epoch):
     if epoch < 4:
@@ -243,7 +210,9 @@ VAL_BATCH_SIZE = 10
 initial_epochs=20
 
 # Setting up the datasets
-train_data, valid_data, test_data = get_image_generators(IMG_SIZE, BATCH_SIZE, VAL_BATCH_SIZE)
+train_data = image_generator("train",IMG_SIZE,BATCH_SIZE,SHUFFLE=True,center=True,std_norm=True,rotation=15,zoom=[0.8, 1.2])
+valid_data = image_generator("valid",IMG_SIZE,VAL_BATCH_SIZE,center=True,std_norm=True)
+test_data =  image_generator("train",IMG_SIZE,VAL_BATCH_SIZE,center=True,std_norm=True)
 
 STEP_SIZE_TRAIN=train_data.n//train_data.batch_size
 STEP_SIZE_VALID=valid_data.n//valid_data.batch_size
