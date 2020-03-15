@@ -1,16 +1,15 @@
+import os
+import time
+# Silence the tensorflow warnings
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 from sklearn.metrics import classification_report
 from sklearn.utils import class_weight
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
-import os
-import time
 import tensorflow as tf
 from tensorflow import keras
 from keras.models import model_from_json
 import numpy as np
 import matplotlib.pyplot as plt
-import subprocess as sp
-# Silence the tensorflow warnings
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 ################################################################################
 
 #               TO-DO:
@@ -69,11 +68,12 @@ def build_model():
     model = keras.Sequential([
         keras.layers.BatchNormalization(input_shape=IMG_SHAPE),
         base_model,
+        keras.layers.Flatten(),
         keras.layers.Dropout(0.5),
         keras.layers.BatchNormalization(),
-        #keras.layers.Dense(16, activation='relu'),
-        #keras.layers.Dropout(0.5),
-        #keras.layers.BatchNormalization(),
+        keras.layers.Dense(16, activation='relu'),
+        keras.layers.Dropout(0.5),
+        keras.layers.BatchNormalization(),
         keras.layers.Dense(3, activation='softmax')
     ])
 
@@ -119,7 +119,7 @@ def fit_model(model,
                         validation_steps=STEP_SIZE_VALID, 
                         class_weight=class_weights,
                         epochs=initial_epochs,
-                        callbacks=[callback],
+                        callbacks=callback,
                         verbose=1)
 
     return history
@@ -198,16 +198,16 @@ def validation_report(model, valid_data, VAL_BATCH_SIZE, STEP_SIZE_VALID):
 
 ####################################################
 
-IMG_SIZE = 224
+IMG_SIZE = 96
 IMG_SHAPE = (IMG_SIZE, IMG_SIZE, 3)
-BATCH_SIZE = 50
-VAL_BATCH_SIZE = 10
+BATCH_SIZE = 100
+VAL_BATCH_SIZE =100
 initial_epochs=20
 
 # Setting up the datasets
-train_data = image_generator("train", IMG_SIZE, BATCH_SIZE, shuffle=True, rotation=15, zoom=[0.8, 1.2])
-valid_data = image_generator("valid", IMG_SIZE, VAL_BATCH_SIZE)
-test_data =  image_generator("train", IMG_SIZE, VAL_BATCH_SIZE)
+train_data = image_generator("IMGS/train", IMG_SIZE, BATCH_SIZE, shuffle=True, rotation=15, zoom=[0.8, 1.2])
+valid_data = image_generator("IMGS/valid", IMG_SIZE, VAL_BATCH_SIZE)
+test_data =  image_generator("IMGS/test", IMG_SIZE, VAL_BATCH_SIZE)
 
 STEP_SIZE_TRAIN=train_data.n//train_data.batch_size
 STEP_SIZE_VALID=valid_data.n//valid_data.batch_size
@@ -221,7 +221,6 @@ STEP_SIZE_VALID=valid_data.n//valid_data.batch_size
 # Train the NN model
 model = build_model()
 validation_report(model, valid_data, VAL_BATCH_SIZE, STEP_SIZE_VALID)
-
 history = fit_model(model, train_data, valid_data, STEP_SIZE_TRAIN, STEP_SIZE_VALID, initial_epochs)
 
 validation_report(model, valid_data, VAL_BATCH_SIZE, STEP_SIZE_VALID)
