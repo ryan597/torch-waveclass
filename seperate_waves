@@ -1,0 +1,45 @@
+#!/bin/bash
+
+
+new_wave () {
+	local I1=$1
+	for i in {1..30}
+	do
+		local I2=$(($I1 + $i))
+	
+		if [ -e "$path/$I2.jpg" ]; then
+			new_wave $I2 $index
+			ln -s "$path/$I2.jpg" "$path/wave_$index/$I2.jpg"
+			break
+		fi
+	done
+}
+
+###############################################################################
+
+# Start with folder wave_0
+index=0
+total_count=0
+path="$1"
+# clean up from previous run
+rm -r $path/wave_*
+
+for image in $path/*.jpg
+do
+	I1=$(basename $image .jpg)   # remove path and .jpg extension
+	if [ ! -e "$path/wave_$index/$I1.jpg" ]; then
+		((index++))
+		mkdir -p "$path/wave_$index"
+		new_wave $I1
+		ln -s "$path/$I1.jpg" "$path/wave_$index/$I1.jpg"
+		count=$(ls $path/wave_$index/*.jpg | wc -l)
+		if [ $count != 0 ]; then
+			echo -e "Images in wave_$index:\t $count"
+			total_count=$(($total_count + $count))
+		else
+			rm -r $path/wave_$index
+			((index--))
+		fi
+	fi
+done
+echo "Total images processed: $total_count"
