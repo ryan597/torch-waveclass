@@ -11,9 +11,6 @@ import matplotlib.pyplot as plt
 import subprocess as sp
 # Silence the tensorflow warnings
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-AUTOTUNE = tf.data.experimental.AUTOTUNE
-# Fix the random seed
-tf.random.set_seed(2020)
 ################################################################################
 
 #               TO-DO:
@@ -23,9 +20,8 @@ tf.random.set_seed(2020)
 # adaptive learning rate callback                                           DONE
 # streamline pipeline
 # generalise code for paths (raw and flow)
-# implement callbacks in fit (save model if validation doesn't increase
-# check the precision and recall, ...)
-# fine tuneing
+# implement callbacks in fit (save model if validation doesn't increase)    DONE
+# fine tuning
 # compare to Buscombes on the new split
 # clean up and refactor
 
@@ -33,35 +29,34 @@ tf.random.set_seed(2020)
 
 # Create the data pipeline to load images and labels
 
-def image_generator(PATH, IMG_SIZE=96, BATCH_SIZE=32, SHUFFLE=False, center=False, std_norm=False, rotation=0, zoom=[1, 1]):
-    print(f"\ncreating image generator for {PATH}...")
+def image_generator(path, img_size=96, batch_size=32, shuffle=False, center=True, std_norm=True, rotation=0, zoom=0):
+    print(f"\ncreating image generator for {path}...")
     datagen = ImageDataGenerator(samplewise_center=center, 
                                 samplewise_std_normalization=std_norm, 
                                 rotation_range=rotation,
                                 zoom_range=zoom)
-    data = datagen.flow_from_directory(PATH,
-                                    target_size=(IMG_SIZE, IMG_SIZE),
-                                    color_mode="rgb",
-                                    batch_size=BATCH_SIZE,
-                                    class_mode="categorical",
-                                    shuffle=SHUFFLE,
-                                    seed=42)
-    return data
 
+    data = datagen.flow_from_directory(path,
+                                target_size=(img_size, img_size),
+                                color_mode="rgb",
+                                batch_size=batch_size,
+                                class_mode="categorical",
+                                shuffle=shuffle,
+                                seed=42)
+    return data
 
 def lr_schedule(epoch):
     if epoch < 4:
         return 0.001
     else:
-        return 0.001 * np.exp(0.2* (3 - epoch))
+        return 0.001 * np.exp(0.1* (3 - epoch))
 
 def build_model():
     optimizer = 'Adam'#get_optimizer()
 
     base_model = tf.keras.applications.MobileNetV2(input_shape=IMG_SHAPE,
                                                     include_top = False,
-                                                    weights='imagenet',
-                                                    pooling='max')
+                                                    weights='imagenet')
 
     #base_model = tf.keras.applications.InceptionV3(input_shape=IMG_SHAPE,
     #                                                include_top=False,
@@ -101,8 +96,6 @@ def fit_model(model,
                                     np.unique(train_data.classes),
                                     train_data.classes)
 
-    #lrcallback = tf.keras.callbacks.LearningRateScheduler(lr_schedule, verbose=1)
-
     filepath = "SAVED_MODELS/model_{epoch:02d}_{val_accuracy:.2f}.hdf5"
     checkpoint = tf.keras.callbacks.ModelCheckpoint(filepath, monitor='val_accuracy',
                 verbose=1, save_best_only=True, mode='max')
@@ -117,6 +110,7 @@ def fit_model(model,
                 min_delta=0.0001, cooldown=0, min_lr=0
                 )
 
+    callback = [stopcallback, lrplateu, checkpoint]
 
     history = model.fit(
                         train_data,
@@ -125,7 +119,7 @@ def fit_model(model,
                         validation_steps=STEP_SIZE_VALID, 
                         class_weight=class_weights,
                         epochs=initial_epochs,
-                        callbacks=[stopcallback, lrplateu, checkpoint],
+                        callbacks=[callback],
                         verbose=1)
 
     return history
@@ -182,6 +176,7 @@ def show_batch(image_batch,
                ):
   plt.rcParams.update({'font.size':8})
   plt.figure(figsize=(10,10))
+  CLASS_NAMES = ["nonbreaking", "plunge", "spill"]
   for n in range(25):
       plt.subplot(5,5,n+1)
       plt.imshow(image_batch[n])
@@ -197,7 +192,7 @@ def validation_report(model, valid_data, VAL_BATCH_SIZE, STEP_SIZE_VALID):
     preds[np.arange(len(p)), p.argmax(1)] = 1
     labels = np.zeros_like(preds)
     for i in range(STEP_SIZE_VALID):
-        imgBatch, labelBatch = next(valid_data)
+        _, labelBatch = next(valid_data)
         labels[i*VAL_BATCH_SIZE: (i+1)*VAL_BATCH_SIZE] = labelBatch
     print(classification_report(labels, preds))
 
@@ -210,9 +205,9 @@ VAL_BATCH_SIZE = 10
 initial_epochs=20
 
 # Setting up the datasets
-train_data = image_generator("train",IMG_SIZE,BATCH_SIZE,SHUFFLE=True,center=True,std_norm=True,rotation=15,zoom=[0.8, 1.2])
-valid_data = image_generator("valid",IMG_SIZE,VAL_BATCH_SIZE,center=True,std_norm=True)
-test_data =  image_generator("train",IMG_SIZE,VAL_BATCH_SIZE,center=True,std_norm=True)
+train_data = image_generator("train", IMG_SIZE, BATCH_SIZE, shuffle=True, rotation=15, zoom=[0.8, 1.2])
+valid_data = image_generator("valid", IMG_SIZE, VAL_BATCH_SIZE)
+test_data =  image_generator("train", IMG_SIZE, VAL_BATCH_SIZE)
 
 STEP_SIZE_TRAIN=train_data.n//train_data.batch_size
 STEP_SIZE_VALID=valid_data.n//valid_data.batch_size
@@ -246,9 +241,3 @@ total_epochs = initial_epochs + fine_epochs
 #                        epochs=total_epochs,
 #                        initial_epoch=history.epoch[-1],
 #                        validation_data=valid_balance,)
-"""
-history += history_fine
-plot(history)
-
-
-"""
