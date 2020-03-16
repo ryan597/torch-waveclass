@@ -44,23 +44,24 @@ VERBOSE=0
 VIEW=30
 
 	echo "starting $impath... output flows in $flowpath"
-	for image in "$impath"/*.jpg
-	do
+	for image in "$impath"/*.jpg; do 
 		I1=$(basename "$image" .jpg)
-		I2=$(($I1 + 10))
-		I3=$(($I1 + 10))
-
-		flo="$impath/flo/$I1.flo"
+        local i=10
+        while [ $i -le 15 ]; do
+		    I2=$(($I1 + $i))
+		    flo="$impath/flo/$I1.flo"
 		
-		if [ -e "$impath/$I2.jpg" ]; then I4=$I2; else I4=$I3; fi
-		
-		if [ -e "$impath/$I4.jpg" ]; then
-			$OFPATH/main $impath/$I1.jpg $impath/$I4.jpg $flo $NPROCS $METHOD $ALPHA $GAMMA $LAMBDA $NSCALES $ZOOM $EPSILON $ZIN $ZOUT $VERBOSE
-			$imscript/viewflow  $VIEW $flo $flowpath/$I1.png
-#			$imscript/backflow $flo $impath/$I4.jpg   | $imscript/plambda $impath/$I1.jpg  -  "x y - fabs 5.0 *" | $imscript/iion - $flowpath/back-$I1.png
-			((flo_count++))
-			echo "processed - $flo_count"
-		fi
+		    if [ -e "$impath/$I2.jpg" ]; then
+			    $OFPATH/main $impath/$I1.jpg $impath/$I2.jpg $flo $NPROCS $METHOD $ALPHA $GAMMA $LAMBDA $NSCALES $ZOOM $EPSILON $ZIN $ZOUT $VERBOSE
+			    $imscript/viewflow  $VIEW $flo $flowpath/$I1.png
+#			    $imscript/backflow $flo $impath/$I2.jpg   | $imscript/plambda $impath/$I1.jpg  -  "x y - fabs 5.0 *" | $imscript/iion - $flowpath/back-$I1.png
+			    ((flo_count++))
+                ((i+=100))
+			    echo "processed - $flo_count"
+                rm $flo  # reduce storage 
+            else ((i++))
+		    fi
+        done
 	done
 	echo "finished - $impath"
 }
