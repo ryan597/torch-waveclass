@@ -1,3 +1,7 @@
+################################################################################
+# Written by Ryan Smith    |    ryan.smith@ucdconnect.ie    |   March 2020
+
+################################################################################
 from sklearn.metrics import classification_report
 from sklearn.utils import class_weight
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
@@ -29,12 +33,14 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 # Create the data pipeline to load images and labels
 
-def image_generator(path, img_size=96, batch_size=32, shuffle=False, center=True, std_norm=True, rotation=0, zoom=0):
+def image_generator(path, img_size=96, batch_size=32, shuffle=False, 
+                    center=True, std_norm=True, rotation=0, zoom=0):
     print(f"\ncreating image generator for {path}...")
     datagen = ImageDataGenerator(samplewise_center=center, 
                                 samplewise_std_normalization=std_norm, 
                                 rotation_range=rotation,
-                                zoom_range=zoom)
+                                zoom_range=zoom,
+                                fill_mode="wrap")
 
     data = datagen.flow_from_directory(path,
                                 target_size=(img_size, img_size),
@@ -69,11 +75,15 @@ def build_model():
     model = keras.Sequential([
         keras.layers.BatchNormalization(input_shape=IMG_SHAPE),
         base_model,
-        keras.layers.Dropout(0.5),
-        keras.layers.BatchNormalization(),
+        keras.layers.GlobalMaxPool2D(),#keras.layers.Flatten(),
+        #keras.layers.Dropout(0.5),
+        #keras.layers.BatchNormalization(),
         #keras.layers.Dense(16, activation='relu'),
         #keras.layers.Dropout(0.5),
         #keras.layers.BatchNormalization(),
+        #keras.layers.Dense(16, activation='relu'),
+        keras.layers.Dropout(0.5),
+        keras.layers.BatchNormalization(),
         keras.layers.Dense(3, activation='softmax')
     ])
 
@@ -95,19 +105,19 @@ def fit_model(model,
     class_weights = class_weight.compute_class_weight('balanced',
                                     np.unique(train_data.classes),
                                     train_data.classes)
-
-    filepath = "SAVED_MODELS/model_{epoch:02d}_{val_accuracy:.2f}.hdf5"
-    checkpoint = tf.keras.callbacks.ModelCheckpoint(filepath, monitor='val_accuracy',
-                verbose=1, save_best_only=True, mode='max')
+                                    
+    filepath = "SAVED_MODELS/model_{epoch:02d}_{val_auc}_{val_accuracy:.2f}.hdf5"
+    checkpoint = tf.keras.callbacks.ModelCheckpoint(filepath, monitor='val_loss',
+                verbose=1, save_best_only=True, mode='auto')
 
     stopcallback = tf.keras.callbacks.EarlyStopping(
-                monitor='val_accuracy', min_delta=0, patience=4, verbose=1, mode='auto',
+                monitor='val_loss', min_delta=0, patience=8, verbose=1, mode='auto',
                 baseline=None, restore_best_weights=True
                 )
 
     lrplateu = tf.keras.callbacks.ReduceLROnPlateau(
-                monitor='val_accuracy', factor=0.1, patience=2, verbose=1, mode='auto',
-                min_delta=0.0001, cooldown=0, min_lr=0
+                monitor='val_loss', factor=0.1, patience=2, verbose=1, mode='auto',
+                min_delta=0.0001, cooldown=2, min_lr=0
                 )
 
     callback = [stopcallback, lrplateu, checkpoint]
@@ -119,7 +129,7 @@ def fit_model(model,
                         validation_steps=STEP_SIZE_VALID, 
                         class_weight=class_weights,
                         epochs=initial_epochs,
-                        callbacks=[callback],
+                        callbacks=callback,
                         verbose=1)
 
     return history
@@ -180,7 +190,7 @@ def show_batch(image_batch,
   for n in range(25):
       plt.subplot(5,5,n+1)
       plt.imshow(image_batch[n])
-      #plt.title(CLASS_NAMES[np.argmax([label_batch[n] == 1])])
+      plt.title(CLASS_NAMES[np.argmax([label_batch[n] == 1])])
       plt.axis('off')
       plt.pause(0.1)
   plt.show()
@@ -198,16 +208,16 @@ def validation_report(model, valid_data, VAL_BATCH_SIZE, STEP_SIZE_VALID):
 
 ####################################################
 
-IMG_SIZE = 224
+IMG_SIZE = 96
 IMG_SHAPE = (IMG_SIZE, IMG_SIZE, 3)
-BATCH_SIZE = 50
-VAL_BATCH_SIZE = 10
+BATCH_SIZE = 100
+VAL_BATCH_SIZE = 1
 initial_epochs=20
 
 # Setting up the datasets
-train_data = image_generator("train", IMG_SIZE, BATCH_SIZE, shuffle=True, rotation=15, zoom=[0.8, 1.2])
-valid_data = image_generator("valid", IMG_SIZE, VAL_BATCH_SIZE)
-test_data =  image_generator("train", IMG_SIZE, VAL_BATCH_SIZE)
+train_data = image_generator("flow/train", IMG_SIZE, BATCH_SIZE, shuffle=True, rotation=15, zoom=[0.8, 1.2])
+valid_data = image_generator("flow/valid", IMG_SIZE, VAL_BATCH_SIZE)
+test_data =  image_generator("flow/test", IMG_SIZE, VAL_BATCH_SIZE)
 
 STEP_SIZE_TRAIN=train_data.n//train_data.batch_size
 STEP_SIZE_VALID=valid_data.n//valid_data.batch_size
@@ -220,15 +230,17 @@ STEP_SIZE_VALID=valid_data.n//valid_data.batch_size
 
 # Train the NN model
 model = build_model()
-validation_report(model, valid_data, VAL_BATCH_SIZE, STEP_SIZE_VALID)
-
 history = fit_model(model, train_data, valid_data, STEP_SIZE_TRAIN, STEP_SIZE_VALID, initial_epochs)
 
+###
+train_no_shuffle = image_generator("flow/train", IMG_SIZE, BATCH_SIZE)
+validation_report(model, train_no_shuffle, BATCH_SIZE, STEP_SIZE_TRAIN)
+###
 validation_report(model, valid_data, VAL_BATCH_SIZE, STEP_SIZE_VALID)
 
 plot_history(history)
 # save the model and weights
-save_model(model, history)
+#save_model(model, history)
 
 #####################################################
 
