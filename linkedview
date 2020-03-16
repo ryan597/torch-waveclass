@@ -1,0 +1,19 @@
+#!/bin/bash
+
+declare -a targets=("train" "valid" "plunge")
+declare -a classes=("plunge" "spill" "nonbreaking")
+
+for class in $classes
+	do
+	rm -r /tmp/$class/*
+	for i in `ls "flow/train/$class"`
+		do j=`basename -s .png $i`
+		# create symbolic links to files synced with the flows
+		ln -s /home/ryan/Documents/UCD/PhD/CODES/IR_waveclass/Optical_waveclass/train/$class/$j.jpg /tmp/$class/$j.jpg
+	done
+done
+
+# visualise the flow sequences
+if [ $1 == "v" ]; then
+	vpv flow/train/plunge flow/train/spill flow/train/nonbreaking /tmp/plunge /tmp/spill /tmp/nonbreaking
+fi

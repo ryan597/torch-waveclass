@@ -1,0 +1,80 @@
+#!/bin/bash
+
+impath=$1   # where raw images exist
+flowpath=$2 # where to store output flow
+imscript="/home/ryan/imscript/bin"
+
+tvflow () {
+	impath=$1
+	flowpath=$2
+
+	mkdir -p "$impath/flo"
+	mkdir -p $flowpath
+	flo_count=0
+
+    OFPATH="/home/ryan/Documents/UCD/PhD/CODES/ipoldfmethods_20160307"
+
+#  ****
+# PARAMETERS FOR THE ROBUST TVL1 OPTICAL FLOW
+#  NPROCS 		is the number of processors to use (0 = all processors available)
+#  METHOD 		selection of which method to use (1, 2, 3, 4)
+#  NPROCS 		number of processors available to program (0 is all processors)
+#  ALPHA 		smoothness parameter
+#  GAMMA 		gradient constancy parameter
+#  LAMBDA 		strength of regularisation
+#  NSCALES 		number of scales to use
+#  ZOOM zoom 	factor for each scale
+#  EPSILON 		error tolerence for convergence
+#  ZIN 			number of inner iterations 
+#  ZOUT			number of outter iterations
+#  VERBOSE
+#  ****
+
+NPROCS=6
+METHOD=1
+ALPHA=3
+GAMMA=2
+LAMBDA=0
+NSCALES=7
+ZOOM=0.5
+EPSILON=0.001
+ZIN=1
+ZOUT=10
+VERBOSE=0
+VIEW=30
+
+	echo "starting $impath... output flows in $flowpath"
+	for image in "$impath"/*.jpg
+	do
+		I1=$(basename "$image" .jpg)
+		I2=$(($I1 + 10))
+		I3=$(($I1 + 10))
+
+		flo="$impath/flo/$I1.flo"
+		
+		if [ -e "$impath/$I2.jpg" ]; then I4=$I2; else I4=$I3; fi
+		
+		if [ -e "$impath/$I4.jpg" ]; then
+			$OFPATH/main $impath/$I1.jpg $impath/$I4.jpg $flo $NPROCS $METHOD $ALPHA $GAMMA $LAMBDA $NSCALES $ZOOM $EPSILON $ZIN $ZOUT $VERBOSE
+			$imscript/viewflow  $VIEW $flo $flowpath/$I1.png
+#			$imscript/backflow $flo $impath/$I4.jpg   | $imscript/plambda $impath/$I1.jpg  -  "x y - fabs 5.0 *" | $imscript/iion - $flowpath/back-$I1.png
+			((flo_count++))
+			echo "processed - $flo_count"
+		fi
+	done
+	echo "finished - $impath"
+}
+
+declare -a targets=("train" "valid" "test")
+declare -a classes=("plunge" "spill" "nonbreaking")
+
+if [[ $impath == "all" ]]; then
+	for i in "${targets[@]}"
+		do for j in "${classes[@]}"
+			do 
+				tvflow "IMGS/IR/$i/$j" "IMGS/flow/$i/$j"
+		done
+	done
+else 
+	tvflow $impath $flowpath
+fi
