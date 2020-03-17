@@ -79,11 +79,6 @@ def build_model():
         keras.layers.Dense(3, activation='softmax')
     ])
 
-    model.compile(optimizer=optimizer,
-        keras.layers.Dropout(0.5),
-        keras.layers.BatchNormalization(),
-        keras.layers.Dense(3, activation='softmax')
-    ])
 
     model.compile(optimizer=optimizer,
         loss=tf.keras.losses.CategoricalCrossentropy(from_logits=True),
