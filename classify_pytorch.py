@@ -92,6 +92,7 @@ def validation_report(model, criterion, valid, val_batch_size):
     labels = np.zeros(size_valid)
     class_correct = list(0. for i in range(3))
     class_total = list(0. for i in range(3))
+    weighted_acc = 0.0
     indx = 0
     
     model.eval()
@@ -101,11 +102,12 @@ def validation_report(model, criterion, valid, val_batch_size):
             outputs = model(img_batch)
             # validation loss
             valid_loss = criterion(outputs, label_batch)
+            valid_loss = valid_loss.item()
             # get the index of the max value
             _, predicted = torch.max(outputs, 1)
-            preds[i*val_batch_size:(i+1)*val_batch_size] = predicted.numpy()
-            labels[i*val_batch_size:(i+1)*val_batch_size] = label_batch.numpy()
-            #c = (predicted == labels).squeeze()
+            preds[indx*val_batch_size:(indx+1)*val_batch_size] = predicted.numpy()
+            labels[indx*val_batch_size:(indx+1)*val_batch_size] = label_batch.numpy()
+            c = (predicted == labels).squeeze()
             # Accuracy on each class
             for i in range(val_batch_size):
                 label = labels[i]
@@ -115,9 +117,14 @@ def validation_report(model, criterion, valid, val_batch_size):
 
         print(classification_report(labels, preds, labels=classes))
 
-        for i in range(len(classes)):
-            print("Accuracy of %5s : %2d %%" % (
+    for i in range(len(classes)):
+        print("Accuracy of %5s : %2d %%" % (
             classes[i], 100*class_correct[i]/class_total[i]))
+        weighted_acc += 100./3 * (class_correct[i]/class_total[i])
+
+    print(f"Validation loss:\t{valid_loss}")
+    print(f"Validation Weighted Accuracy:\t{weighted_acc}")
+    return valid_loss, weighted_acc
 
 ################################################################################
 
@@ -154,6 +161,7 @@ print("Starting training...")
 valid_loss = np.inf
 for epoch in range(10):
     model.train()
+    train_loss=0.0
     for i, data in enumerate(train, 0):
         inputs, labels = data
         optimizer.zero_grad()
@@ -164,36 +172,22 @@ for epoch in range(10):
         loss.backward()
         optimizer.step()
         #print statistics
-        train_loss = loss.item()
+        train_loss += loss.item()
 
-        # print every mini-batch step
-        print('Epoch %d\t| Step %d\t| Training loss : %.3f' % 
-                (epoch + 1, (i+1), train_loss))
+        # print every 5 mini-batch steps
+        if (i+1)%5 == 0:
+            print('Epoch %d\t| Step %d\t| Training loss : %.3f' % 
+                    (epoch + 1, (i+1), train_loss / 5))
+            train_loss=0.0
 
-    with torch.no_grad():
-        model.eval()
-        print("End of Epoch...\t Running validation")
-        
-        print(f"Validation loss:\t{new_loss}")
+    print("End of Epoch...\t Running validation")
+    valid_loss, weighted_acc = validation_report(model, criterion, valid, val_batch_size)
     # save on the end of epoch if valid_loss improves
-    if new_loss < valid_loss:
-        print(f"Validation loss decreased : {valid_loss} to {new_loss}")
-        torch.save(net.state_dict(), f'SAVED_MODELS/pytorch_model_{epoch}_{new_loss}.pth')
-        print("Saved model \t pytorch_model{epoch}_{new_loss}")
-        valid_loss = new_loss
+    if valid_loss < best_loss:
+        print(f"Validation loss decreased : {best_loss} to {valid_loss}")
+        torch.save(model.state_dict(), f'SAVED_MODELS/model_{epoch}_{valid_loss}_{weighted_acc}.pth')
+        print(f"Saved model \tmodel{epoch}_{valid_loss}_{weighted_acc}")
+        best_loss = valid_loss
 print("Finished Training")
 
 ################################################################################
-
-# Validation
-class_correct = list(0. for i in range(3))
-class_total = list(0. for i in range(3))
-net.eval()
-with torch.no_grad():
-    for data in valid:
-        imgs, labels = data
-        outputs = net(imgs)
-        _, predicted = torch.max(outputs, 1)
-        c = (predicted == labels).squeeze()
-
-
