@@ -1,6 +1,7 @@
 ################################################################################
 # Written by Ryan Smith    |    ryan.smith@ucdconnect.ie    |   March 2020
 # University College Dublin|    github.com:ryan597/waveclass.git
+
 ################################################################################
 import os
 import argparse
@@ -15,13 +16,26 @@ from torchvision import transforms, datasets, models
 import PIL
 from sklearn.metrics import classification_report
 ################################################################################
+#                   TO-DO:
+# Refactor code (functions to own file, call with params)
+# Generalise to both IR and Flow
+# Automatic calculation of class weights
+# Testing of different arch. & hyper. & augmentations
+# Adding plotting of training history (real time updates)
+# Implememnt early stopping
+# Refactor code again...
+# Have some coffee
+# Refactor again...
+# Verbose option in argparse
+
+################################################################################
 
 parser = argparse.ArgumentParser(description="Model save file prefix")
 parser.add_argument("-f", metavar="PREFIX", type=str, nargs=1, 
         help="A prefix to uniquely identify user settings")
 args = parser.parse_args()
 model_prefix = args.f[0]
-print(model_prefix)
+print("model_"+model_prefix+"epoch_loss_acc")
 ################################################################################
 
 
@@ -237,7 +251,7 @@ for epoch in range(10):
     # save on the end of epoch if valid_loss improves
     if valid_loss < best_loss:
         print("Validation loss decreased :\t %.3f to %.3f" % (best_loss, valid_loss))
-        torch.save(model.state_dict(), "SAVED_MODELS/model_%s_%d__%.2f_%.2f.pth" % (
+        torch.save(model.state_dict(), "SAVED_MODELS/model_%s_%d_%.2f_%.2f.pth" % (
             model_prefix, epoch, valid_loss, weighted_acc))
         print("Saved model \tmodel_%s_%d_%.2f_%.2f.pth" % (
             model_prefix, epoch, valid_loss, weighted_acc))
