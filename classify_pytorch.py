@@ -165,7 +165,11 @@ test  = image_data("IMGS/IR/test" , batch_size=15, image_shape=image_shape)
 
 model = Net()
 
-criterion = nn.CrossEntropyLoss()#weight=class_weights)
+# 1/(number of samples for each class)
+class_weights = np.array([1./5172, 1./166, 1./1652])
+class_weights = torch(class_weights)
+
+criterion = nn.CrossEntropyLoss(weight=class_weights)
 optimizer = optim.AdamW(model.parameters(), lr=0.001)
 scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=len(train))
 ################################################################################
@@ -178,11 +182,12 @@ validation_report(model, criterion, train, batch_size)
 print("Starting training...")
 best_loss = np.inf
 for epoch in range(10):
+    print("\n*****************\n\tTRAINING...")
     model.train()
     train_loss=0.0
     class_correct = np.zeros(3)
     class_total = np.zeros(3)
-
+    
     print("\nLearning rate :\t %0.9f" % scheduler.get_lr()[0])
     for i, data in enumerate(train, 0):
         inputs, labels = data
@@ -214,6 +219,7 @@ for epoch in range(10):
             train_loss=0.0
     
     scheduler.step()
+    print("\n*****************\n\tVALIDATING...")
     print("\n\t*** TRAINING REPORT ***")
     _, _ = validation_report(model, criterion, train, batch_size)
     print("\n\t*** VALIDATION REPORT ***")
