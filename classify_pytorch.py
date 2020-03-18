@@ -3,6 +3,7 @@
 
 ################################################################################
 import os
+import argparse
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
@@ -14,6 +15,15 @@ from torchvision import transforms, datasets, models
 import PIL
 from sklearn.metrics import classification_report
 ################################################################################
+
+parser = argparse.ArgumentParser(description="Model save file prefix")
+parser.add_argument("-f", metavar="PREFIX", type=str, nargs=1, 
+        help="A prefix to uniquely identify user settings")
+args = parser.parse_args()
+model_prefix = args.f[0]
+print(model_prefix)
+################################################################################
+
 
 class Net(nn.Module):
     # implement for other pretrained models
@@ -227,10 +237,10 @@ for epoch in range(10):
     # save on the end of epoch if valid_loss improves
     if valid_loss < best_loss:
         print("Validation loss decreased :\t %.3f to %.3f" % (best_loss, valid_loss))
-        torch.save(model.state_dict(), "SAVED_MODELS/model_%d__%.2f_%.2f.pth" % (
-            epoch, valid_loss, weighted_acc))
-        print("Saved model \tmodel_%d_%.2f_%.2f.pth" % (
-            epoch, valid_loss, weighted_acc))
+        torch.save(model.state_dict(), "SAVED_MODELS/model_%s_%d__%.2f_%.2f.pth" % (
+            model_prefix, epoch, valid_loss, weighted_acc))
+        print("Saved model \tmodel_%s_%d_%.2f_%.2f.pth" % (
+            model_prefix, epoch, valid_loss, weighted_acc))
         best_loss = valid_loss
 print("Finished Training")
 
