@@ -1,3 +1,7 @@
+################################################################################
+# Written by Ryan Smith    |    ryan.smith@ucdconnect.ie    |   March 2020
+
+################################################################################
 import os
 import torch
 import numpy as np
@@ -21,14 +25,19 @@ class Net(nn.Module):
         for param in pretrain.features.parameters():
             param.requires_grad = False
         self.model = pretrain
-        self.drop = nn.Dropout(0.5)
         # remove the top from pretrained and replace with custom fully connected
-        self.model.fc = nn.Linear(1000, 3)
+        self.model.classifier = nn.Dropout(0.2)
+        self.norm1 = nn.BatchNorm1d(1280)
+        self.fc1 = nn.Linear(1280, 10)
+        self.drop1 = nn.Dropout(0.2)
+        self.fc2 = nn.Linear(10, 3)
 
     def forward(self, x):
-        x = self.model(x)
-        x = self.drop(x)
-        x = F.softmax(x)
+        x = F.relu6(self.model(x))
+        x = self.norm1(x)
+        x = F.relu6(self.fc1(x))
+        x = self.drop1(x)
+        x = self.fc2(x)
         return x
 
 def image_data(root_dir, image_size=(96, 96), augmentations=None, batch_size=1, shuffle=False):
@@ -94,9 +103,9 @@ def validation_report(model, criterion, valid, val_batch_size):
     class_total = list(0. for i in range(3))
     weighted_acc = 0.0
     indx = 0
-    
-    model.eval()
+        
     with torch.no_grad():
+        model.eval()
         for batch in valid:
             img_batch, label_batch = batch
             outputs = model(img_batch)
@@ -105,25 +114,27 @@ def validation_report(model, criterion, valid, val_batch_size):
             valid_loss = valid_loss.item()
             # get the index of the max value
             _, predicted = torch.max(outputs, 1)
+            c = (predicted == label_batch)
+
             preds[indx*val_batch_size:(indx+1)*val_batch_size] = predicted.numpy()
             labels[indx*val_batch_size:(indx+1)*val_batch_size] = label_batch.numpy()
-            c = (predicted == labels).squeeze()
             # Accuracy on each class
             for i in range(val_batch_size):
-                label = labels[i]
+                label = label_batch.numpy()[i]
                 class_correct[label] += c[i].item()
                 class_total[label] += 1
             indx+=1
-
-        print(classification_report(labels, preds, labels=classes))
+        labels = labels.astype(int)
+        preds = preds.astype(int)
+        print(classification_report(labels, preds))
 
     for i in range(len(classes)):
-        print("Accuracy of %5s : %2d %%" % (
+        print("Accuracy of %5s :\t %.2f %%" % (
             classes[i], 100*class_correct[i]/class_total[i]))
         weighted_acc += 100./3 * (class_correct[i]/class_total[i])
 
-    print(f"Validation loss:\t{valid_loss}")
-    print(f"Validation Weighted Accuracy:\t{weighted_acc}")
+    print("Validation loss:\t%.3f" % (valid_loss))
+    print("Validation Weighted Accuracy:\t%.2f" % (weighted_acc))
     return valid_loss, weighted_acc
 
 ################################################################################
@@ -138,11 +149,12 @@ augment = transforms.Compose([
     transforms.RandomRotation(degrees=15),
     transforms.ToTensor(),
     # rescale to be in (0, 1)
-    transforms.Normalize((0, 0, 0), ((255, 255, 255)))
+    transforms.Normalize((0, 0, 0), ((255, 255, 255))),
     # mobilenet_v2 normalize
+    transforms.Normalize((0.485, 0.456, 0.406), ((0.229, 0.224, 0.225)))
 ])
 
-train = image_data("IMGS/IR/train", batch_size=300, shuffle=True)
+train = image_data("IMGS/IR/train", batch_size=300, shuffle=True, augmentations=None)
 valid = image_data("IMGS/IR/valid", batch_size=15)
 test  = image_data("IMGS/IR/test" , batch_size=15)
 
@@ -152,16 +164,20 @@ print(model)
 
 #class_weights = torch.from_numpy(np.array([1./5172, 1./166, 1/1652]))
 criterion = nn.CrossEntropyLoss()#weight=class_weights)
-optimizer = optim.Adam(model.parameters(), lr=0.001)
-
+optimizer = optim.AdamW(model.parameters(), lr=0.001)
+scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=len(train))
 ################################################################################
 
 # Training 
 print("Starting training...")
-valid_loss = np.inf
+best_loss = np.inf
 for epoch in range(10):
     model.train()
     train_loss=0.0
+    class_correct = np.zeros(3)
+    class_total = np.zeros(3)
+
+    print("Learning rate :\t %0.9f" % scheduler.get_lr()[0])
     for i, data in enumerate(train, 0):
         inputs, labels = data
         optimizer.zero_grad()
@@ -176,17 +192,31 @@ for epoch in range(10):
 
         # print every 5 mini-batch steps
         if (i+1)%5 == 0:
-            print('Epoch %d\t| Step %d\t| Training loss : %.3f' % 
-                    (epoch + 1, (i+1), train_loss / 5))
-            train_loss=0.0
+            _, predicted = torch.max(outputs, 1)
+            c = (predicted == labels)
 
+            for j in range(batch_size):
+                label = labels.numpy()[j]
+                class_correct[int(label)] += c[j].item()
+                class_total[int(label)] += 1
+            
+            train_acc = 100 * np.sum(class_correct) / np.sum(class_total)
+            train_acc_w = 100./3 * np.sum((class_correct/class_total))
+
+            print('Epoch %d\t| Step %d\t| Training loss : %.3f\t| Training acc : %.3f || %.3f' % 
+                    (epoch + 1, (i+1), train_loss / 5, train_acc, train_acc_w))
+            train_loss=0.0
+    
+    scheduler.step()
     print("End of Epoch...\t Running validation")
     valid_loss, weighted_acc = validation_report(model, criterion, valid, val_batch_size)
     # save on the end of epoch if valid_loss improves
     if valid_loss < best_loss:
-        print(f"Validation loss decreased : {best_loss} to {valid_loss}")
-        torch.save(model.state_dict(), f'SAVED_MODELS/model_{epoch}_{valid_loss}_{weighted_acc}.pth')
-        print(f"Saved model \tmodel{epoch}_{valid_loss}_{weighted_acc}")
+        print("Validation loss decreased :\t %.3f to %.3f" % (best_loss, valid_loss))
+        torch.save(model.state_dict(), "SAVED_MODELS/model_%d_%.2f.pth" % (
+            epoch, weighted_acc))
+        print("Saved model \tmodel_%d_%.2f.pth" % (
+            epoch, weighted_acc))
         best_loss = valid_loss
 print("Finished Training")
 
