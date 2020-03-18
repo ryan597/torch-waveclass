@@ -1,0 +1,41 @@
+#!/bin/bash
+
+cd ..
+
+imgs () {
+	target=$1
+	class=$2
+	mkdir -p $target/$class
+	
+	Source="IR_waveclass/$target/$class"
+	Dest="Optical_waveclass/$target/$class"
+
+	img_count=0
+
+	for image in $Source/*.jpg
+	do 
+		I0=$(basename $image)
+		I1=${I0::-4}  # remove .jpg extension
+		I2=$(($I1 + 10))
+		I3=$(($I2 + 10))
+		if [ -e "$Source/$I2.jpg" ]; then
+			cp -n $Source/$I1.jpg $Dest/$I1.jpg
+			cp -n $Source/$I2.jpg $Dest/$I2.jpg
+			((img_count++))
+		elif [ -e "$Source/$I3.jpg" ]; then 
+			cp -n $Source/$I1.jpg $Dest/$I1.jpg
+			cp -n $Source/$I3.jpg $Dest/$I3.jpg
+			((img_count++))
+		fi
+	done
+
+	echo "$target $class pairs:  $img_count"
+}
+
+imgs "train" "plunge"
+imgs "train" "spill"
+imgs "train" "nonbreaking"
+
+imgs "test" "plunge"
+imgs "test" "spill"
+imgs "test" "nonbreaking"

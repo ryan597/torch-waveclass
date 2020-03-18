@@ -1,0 +1,52 @@
+#!/bin/bash
+
+impath=$1   # where raw images exist
+flowpath=$2 # where to store output flow
+imscript="/home/ryan/imscript/bin"
+
+spyflow () {
+    impath=$1
+    flowpath=$2
+    VIEW=0
+    mkdir -p "$impath/flo"
+    mkdir -p $flowpath
+    flo_count=0
+
+    OFPATH=/home/ryan/Documents/UCD/PhD/CODES/pytorch-spynet
+
+    echo "starting $impath... output flows in $flowpath"
+    for image in "$impath"/*.jpg; do 
+        I1=$(basename "$image" .jpg)
+        local i=10
+        while [ $i -le 15 ]; do
+            I2=$(($I1 + $i))
+            flo="$impath/flo/$I1.flo"
+        
+            if [ -e "$impath/$I2.jpg" ]; then
+               python "$OFPATH/run.py" --model sintel-final --first $impath/$I1.jpg --second $impath/$I2.jpg --out $flo 
+               $imscript/viewflow  $VIEW $flo $flowpath/$I1.png
+#               $imscript/backflow $flo $impath/$I2.jpg   | $imscript/plambda $impath/$I1.jpg  -  "x y - fabs 5.0 *" | $imscript/iion - $flowpath/back-$I1.png
+                ((flo_count++))
+                ((i+=100))
+                echo "processed - $flo_count"
+                #rm $flo  # reduce storage 
+            else ((i++))
+            fi
+        done
+    done
+    echo "finished - $impath"
+}
+
+declare -a targets=("train" "valid" "test")
+declare -a classes=("plunge" "spill" "nonbreaking")
+
+if [[ $impath == "all" ]]; then
+    for i in "${targets[@]}"
+        do for j in "${classes[@]}"
+            do 
+                spyflow "IMGS/IR/$i/$j" "IMGS/spyflow/$i/$j"
+        done
+    done
+else 
+    spyflow $impath $flowpath
+fi                               
