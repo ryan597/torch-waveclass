@@ -1,9 +1,8 @@
 #!/bin/bash
 
-
 new_wave () {
 	local I1=$1
-	for i in {1..30}
+	for i in {1..200}  # wave images should be within 1 second of eachother
 	do
 		local I2=$(($I1 + $i))
 	
@@ -22,7 +21,9 @@ index=0
 total_count=0
 path="$1"
 # clean up from previous run
-rm -r $path/wave_*
+if [ -e $path/wave_1 ]; then
+    rm -r $path/wave_*
+fi
 
 for image in $path/*.jpg
 do
