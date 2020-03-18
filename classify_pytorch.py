@@ -1,6 +1,6 @@
 ################################################################################
 # Written by Ryan Smith    |    ryan.smith@ucdconnect.ie    |   March 2020
-
+# University College Dublin|    github.com:ryan597/waveclass.git
 ################################################################################
 import os
 import torch
@@ -94,7 +94,7 @@ def view_img_batch(data_loader):
     plt.show()
 
 def validation_report(model, criterion, valid, val_batch_size):
-    print("\ngenerating validation report...")
+    print("\ngenerating report...")
     classes = ('nonbreaking', 'plunge', 'spill')
     size_valid = len(valid) * val_batch_size
     preds = np.zeros(size_valid)
@@ -167,7 +167,7 @@ model = Net()
 
 # 1/(number of samples for each class)
 class_weights = np.array([1./5172, 1./166, 1./1652])
-class_weights = torch(class_weights)
+class_weights = torch.FloatTensor(class_weights)
 
 criterion = nn.CrossEntropyLoss(weight=class_weights)
 optimizer = optim.AdamW(model.parameters(), lr=0.001)
