@@ -26,10 +26,10 @@ class Net(nn.Module):
             param.requires_grad = False
         self.model = pretrain
         # remove the top from pretrained and replace with custom fully connected
-        self.model.classifier = nn.Dropout(0.2)
+        self.model.classifier = nn.Dropout(0.5)
         self.norm1 = nn.BatchNorm1d(1280)
         self.fc1 = nn.Linear(1280, 10)
-        self.drop1 = nn.Dropout(0.2)
+        self.drop1 = nn.Dropout(0.5)
         self.fc2 = nn.Linear(10, 3)
 
     def forward(self, x):
@@ -40,7 +40,7 @@ class Net(nn.Module):
         x = self.fc2(x)
         return x
 
-def image_data(root_dir, image_size=(96, 96), augmentations=None, batch_size=1, shuffle=False):
+def image_data(root_dir, image_shape=(96, 96), augmentations=None, batch_size=1, shuffle=False):
     """
     Args:
         root_dir (string): path to the class folders
@@ -53,7 +53,7 @@ def image_data(root_dir, image_size=(96, 96), augmentations=None, batch_size=1, 
     """
     if augmentations is None:
         data_transform = transforms.Compose([
-            transforms.Resize(size=image_size),
+            transforms.Resize(size=image_shape),
             transforms.ToTensor(),
             # normalize between 0 and 1
             transforms.Normalize((0, 0, 0), ((255, 255, 255))),
@@ -107,6 +107,9 @@ def validation_report(model, criterion, valid, val_batch_size):
     with torch.no_grad():
         model.eval()
         for batch in valid:
+            # drop leftover samples
+            if len(batch[0]) != val_batch_size:
+                break
             img_batch, label_batch = batch
             outputs = model(img_batch)
             # validation loss
@@ -129,11 +132,11 @@ def validation_report(model, criterion, valid, val_batch_size):
         print(classification_report(labels, preds))
 
     for i in range(len(classes)):
-        print("Accuracy of %5s :\t %.2f %%" % (
+        print("Accuracy of %5s\t:\t %.2f %%" % (
             classes[i], 100*class_correct[i]/class_total[i]))
         weighted_acc += 100./3 * (class_correct[i]/class_total[i])
 
-    print("Validation loss:\t%.3f" % (valid_loss))
+    print("\nValidation loss:\t%.3f" % (valid_loss))
     print("Validation Weighted Accuracy:\t%.2f" % (weighted_acc))
     return valid_loss, weighted_acc
 
@@ -142,10 +145,11 @@ def validation_report(model, criterion, valid, val_batch_size):
 # Data and parameter settings
 batch_size = 300
 val_batch_size = 15
-image_size = (96, 96)
+image_size  = 96
+image_shape = (image_size, image_size)
 
 augment = transforms.Compose([
-    transforms.RandomResizedCrop(size=image_size, scale=(0.8, 1.0), ratio=(1, 1)),
+    transforms.RandomResizedCrop(size=image_shape, scale=(0.8, 1.0), ratio=(1, 1)),
     transforms.RandomRotation(degrees=15),
     transforms.ToTensor(),
     # rescale to be in (0, 1)
@@ -154,19 +158,21 @@ augment = transforms.Compose([
     transforms.Normalize((0.485, 0.456, 0.406), ((0.229, 0.224, 0.225)))
 ])
 
-train = image_data("IMGS/IR/train", batch_size=300, shuffle=True, augmentations=None)
-valid = image_data("IMGS/IR/valid", batch_size=15)
-test  = image_data("IMGS/IR/test" , batch_size=15)
+train = image_data("IMGS/IR/train", batch_size=300, image_shape=image_shape,
+                    shuffle=True, augmentations=augment)
+valid = image_data("IMGS/IR/valid", batch_size=15, image_shape=image_shape)
+test  = image_data("IMGS/IR/test" , batch_size=15, image_shape=image_shape)
 
 model = Net()
-print(model)
 
-
-#class_weights = torch.from_numpy(np.array([1./5172, 1./166, 1/1652]))
 criterion = nn.CrossEntropyLoss()#weight=class_weights)
 optimizer = optim.AdamW(model.parameters(), lr=0.001)
 scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=len(train))
 ################################################################################
+
+#*************************
+validation_report(model, criterion, train, batch_size)
+
 
 # Training 
 print("Starting training...")
@@ -177,7 +183,7 @@ for epoch in range(10):
     class_correct = np.zeros(3)
     class_total = np.zeros(3)
 
-    print("Learning rate :\t %0.9f" % scheduler.get_lr()[0])
+    print("\nLearning rate :\t %0.9f" % scheduler.get_lr()[0])
     for i, data in enumerate(train, 0):
         inputs, labels = data
         optimizer.zero_grad()
@@ -208,15 +214,17 @@ for epoch in range(10):
             train_loss=0.0
     
     scheduler.step()
-    print("End of Epoch...\t Running validation")
+    print("\n\t*** TRAINING REPORT ***")
+    _, _ = validation_report(model, criterion, train, batch_size)
+    print("\n\t*** VALIDATION REPORT ***")
     valid_loss, weighted_acc = validation_report(model, criterion, valid, val_batch_size)
     # save on the end of epoch if valid_loss improves
     if valid_loss < best_loss:
         print("Validation loss decreased :\t %.3f to %.3f" % (best_loss, valid_loss))
-        torch.save(model.state_dict(), "SAVED_MODELS/model_%d_%.2f.pth" % (
-            epoch, weighted_acc))
-        print("Saved model \tmodel_%d_%.2f.pth" % (
-            epoch, weighted_acc))
+        torch.save(model.state_dict(), "SAVED_MODELS/model_%d__%.2f_%.2f.pth" % (
+            epoch, valid_loss, weighted_acc))
+        print("Saved model \tmodel_%d_%.2f_%.2f.pth" % (
+            epoch, valid_loss, weighted_acc))
         best_loss = valid_loss
 print("Finished Training")
 
