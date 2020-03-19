@@ -18,6 +18,7 @@ from sklearn.metrics import classification_report
 ################################################################################
 #                   TO-DO:
 # Refactor code (functions to own file, call with params)
+# Switch to H5Dataset
 # Generalise to both IR and Flow
 # Automatic calculation of class weights
 # Testing of different arch. & hyper. & augmentations
@@ -43,10 +44,12 @@ class H5Dataset(Dataset):
     Args:
         path (string) : path to the HDF5 file for train or test
     """
-    def __init__(self, path):
+    def __init__(self, path, transforms=None):
         self.file_path = path
+        self.transforms=transforms
         self.images = None
         self.labels = None
+
         with h5py.File(self.file_path, 'r') as file:
             self.dataset_len = len(file['images'])
 
@@ -54,7 +57,13 @@ class H5Dataset(Dataset):
         if self.images is None:
             self.images = h5py.File(self.file_path, 'r')['images']
             self.labels = h5py.File(self.file_path, 'r')['labels']
-        return [self.images[index], self.labels[index]]
+        
+        if self.transforms is not None:
+            image = self.transforms(self.images[index])
+        else:
+            image = self.images[index]
+            
+        return (image, self.labels[index])
 
     def __len__(self):
         return self.dataset_len
