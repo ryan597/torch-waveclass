@@ -34,8 +34,8 @@ parser = argparse.ArgumentParser(description="Model save file prefix")
 parser.add_argument("-f", metavar="PREFIX", type=str, nargs=1, 
         help="A prefix to uniquely identify user settings")
 args = parser.parse_args()
-model_prefix = args.f[0]
-print("model_"+model_prefix+"epoch_loss_acc")
+#model_prefix = args.f[0]
+#print("model_"+model_prefix+"_epoch_loss_acc")
 ################################################################################
 
 
@@ -167,7 +167,7 @@ def validation_report(model, criterion, valid, val_batch_size):
 ################################################################################
 
 # Data and parameter settings
-batch_size = 300
+batch_size = 10
 val_batch_size = 15
 image_size  = 96
 image_shape = (image_size, image_size)
@@ -182,25 +182,21 @@ augment = transforms.Compose([
     transforms.Normalize((0.485, 0.456, 0.406), ((0.229, 0.224, 0.225)))
 ])
 
-train = image_data("IMGS/IR/train", batch_size=300, image_shape=image_shape,
+train = image_data("IMGS/IR/train", batch_size=batch_size, image_shape=image_shape,
                     shuffle=True, augmentations=augment)
-valid = image_data("IMGS/IR/valid", batch_size=15, image_shape=image_shape)
-test  = image_data("IMGS/IR/test" , batch_size=15, image_shape=image_shape)
+valid = image_data("IMGS/IR/valid", batch_size=val_batch_size, image_shape=image_shape)
+test  = image_data("IMGS/IR/test" , batch_size=val_batch_size, image_shape=image_shape)
 
 model = Net()
 
 # 1/(number of samples for each class)
-class_weights = np.array([1./5172, 1./166, 1./1652])
+class_weights = np.array([1./6302, 1./188, 1./2000])
 class_weights = torch.FloatTensor(class_weights)
 
 criterion = nn.CrossEntropyLoss(weight=class_weights)
 optimizer = optim.AdamW(model.parameters(), lr=0.001)
 scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=len(train))
 ################################################################################
-
-#*************************
-validation_report(model, criterion, train, batch_size)
-
 
 # Training 
 print("Starting training...")
@@ -224,13 +220,13 @@ for epoch in range(10):
         optimizer.step()
         #print statistics
         train_loss += loss.item()
-
+        break
         # print every 5 mini-batch steps
         if (i+1)%5 == 0:
             _, predicted = torch.max(outputs, 1)
             c = (predicted == labels)
 
-            for j in range(batch_size):
+            for j in range(len(c)):
                 label = labels.numpy()[j]
                 class_correct[int(label)] += c[j].item()
                 class_total[int(label)] += 1
@@ -241,7 +237,7 @@ for epoch in range(10):
             print('Epoch %d\t| Step %d\t| Training loss : %.3f\t| Training acc : %.3f || %.3f' % 
                     (epoch + 1, (i+1), train_loss / 5, train_acc, train_acc_w))
             train_loss=0.0
-    
+    break
     scheduler.step()
     print("\n*****************\n\tVALIDATING...")
     print("\n\t*** TRAINING REPORT ***")
@@ -259,3 +255,10 @@ for epoch in range(10):
 print("Finished Training")
 
 ################################################################################
+
+# Loading model
+#model = TheModelClass(*args, **kwargs)
+#model.load_state_dict(torch.load(PATH))
+
+# Fine tuning
+#if weighted_acc > 70:
