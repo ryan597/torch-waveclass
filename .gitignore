@@ -1,6 +1,2 @@
 *.swp
-*.json
-*.h5
-*.hdf5
-IMGS
 SAVED_MODELS

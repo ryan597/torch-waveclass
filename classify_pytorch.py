@@ -6,14 +6,14 @@
 import os
 import argparse
 import torch
+import h5py
 import numpy as np
 import matplotlib.pyplot as plt
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms, datasets, models
-import PIL
 from sklearn.metrics import classification_report
 ################################################################################
 #                   TO-DO:
@@ -38,6 +38,26 @@ model_prefix = args.f[0]
 print("model_"+model_prefix+"epoch_loss_acc")
 ################################################################################
 
+class H5Dataset(Dataset):
+    """Dataset of image and label data in HDF5 format.
+    Args:
+        path (string) : path to the HDF5 file for train or test
+    """
+    def __init__(self, path):
+        self.file_path = path
+        self.images = None
+        self.labels = None
+        with h5py.File(self.file_path, 'r') as file:
+            self.dataset_len = len(file['images'])
+
+    def __getitem__(self, index):
+        if self.images is None:
+            self.images = h5py.File(self.file_path, 'r')['images']
+            self.labels = h5py.File(self.file_path, 'r')['labels']
+        return [self.images[index], self.labels[index]]
+
+    def __len__(self):
+        return self.dataset_len
 
 class Net(nn.Module):
     # implement for other pretrained models
@@ -197,10 +217,6 @@ criterion = nn.CrossEntropyLoss(weight=class_weights)
 optimizer = optim.AdamW(model.parameters(), lr=0.001)
 scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=len(train))
 ################################################################################
-
-#*************************
-validation_report(model, criterion, train, batch_size)
-
 
 # Training 
 print("Starting training...")
