@@ -1,7 +1,7 @@
+H5_files
 *.swp
 *.json
-*.h5
-*.hdf5
+IMGS
 SAVED_MODELS
 
 flow

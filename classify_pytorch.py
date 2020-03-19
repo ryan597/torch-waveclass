@@ -3,21 +3,21 @@
 # University College Dublin|    github.com:ryan597/waveclass.git
 
 ################################################################################
-import os
 import argparse
 import torch
+import h5py
 import numpy as np
 import matplotlib.pyplot as plt
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from torch.utils.data import DataLoader
-from torchvision import transforms, datasets, models
-import PIL
+from torch.utils.data import DataLoader, Dataset
+from torchvision import transforms, models
 from sklearn.metrics import classification_report
 ################################################################################
 #                   TO-DO:
 # Refactor code (functions to own file, call with params)
+# Switch to H5Dataset
 # Generalise to both IR and Flow
 # Automatic calculation of class weights
 # Testing of different arch. & hyper. & augmentations
@@ -34,10 +34,49 @@ parser = argparse.ArgumentParser(description="Model save file prefix")
 parser.add_argument("-f", metavar="PREFIX", type=str, nargs=1, 
         help="A prefix to uniquely identify user settings")
 args = parser.parse_args()
-#model_prefix = args.f[0]
-#print("model_"+model_prefix+"_epoch_loss_acc")
+if args.f is not None:
+    model_prefix = args.f[0]
+else:
+    model_prefix = "base_"
+print("model_"+model_prefix+"epoch_loss_acc")
 ################################################################################
 
+class H5Dataset(Dataset):
+    """Dataset of image and label data in HDF5 format.
+
+    Args:
+        path (string) : path to the HDF5 file for train or test
+        transforms (callable, optional): A transforms.Compose([...]) callable
+            to transform or augment the images with before the appropriate
+            transforms for the pretrained base model
+        pretrain_transforms ()
+    """
+    def __init__(self, path, transform=None):
+        self.file_path = path
+        self.images = None
+        self.labels = None
+        self.transform = transform
+
+        with h5py.File(self.file_path, 'r') as file:
+            self.dataset_len = len(file['images'])
+
+    def __getitem__(self, index):
+        if self.images is None:
+            self.images = h5py.File(self.file_path, 'r')['images']
+            self.labels = h5py.File(self.file_path, 'r')['labels']
+        
+        image = self.images[index]
+        image = self.transform(image).numpy()[0]
+        # Grayscale to RGB for the pretrain normalize to work
+        # Try: save H5 files as RGB, storage will be 3x, but test speed up in loading
+        image = torch.from_numpy(np.array([image, image, image]))
+        image = pretrain_transform(image)
+        # loss expects type long
+        label = np.long(self.labels[index])
+        return (image, label)
+
+    def __len__(self):
+        return self.dataset_len
 
 class Net(nn.Module):
     # implement for other pretrained models
@@ -64,8 +103,14 @@ class Net(nn.Module):
         x = self.fc2(x)
         return x
 
+def h5_dataloader(h5path, transform=None, batch_size=32, shuffle=False, num_workers=4):
+    dataset = H5Dataset(h5path, transform=transform)
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
+    return dataloader
+
+"""
 def image_data(root_dir, image_shape=(96, 96), augmentations=None, batch_size=1, shuffle=False):
-    """
+    ""
     Args:
         root_dir (string): path to the class folders
         image_size (int, int): Resize all the images to this.
@@ -74,7 +119,7 @@ def image_data(root_dir, image_shape=(96, 96), augmentations=None, batch_size=1,
         shuffle (bool): to shuffle the dataset or not, default is false
     Returns:
         A batched labeled image dataloader from the root_dir with applied augmentations.
-    """
+    ""
     if augmentations is None:
         data_transform = transforms.Compose([
             transforms.Resize(size=image_shape),
@@ -92,11 +137,12 @@ def image_data(root_dir, image_shape=(96, 96), augmentations=None, batch_size=1,
     data_loader = DataLoader(dataset, 
                             batch_size=batch_size,
                             shuffle=shuffle,
-                            num_workers=6)
+                            num_workers=4)
 
     # implement dataset._find_classes() and return
     # get number of files in each class and return
     return data_loader
+"""
 
 def view_img_batch(data_loader):
     plt.figure(figsize=(10,10))
@@ -167,30 +213,70 @@ def validation_report(model, criterion, valid, val_batch_size):
 ################################################################################
 
 # Data and parameter settings
-batch_size = 10
-val_batch_size = 15
+batch_size = 300
+val_batch_size = 150
 image_size  = 96
 image_shape = (image_size, image_size)
+base_model = "mobilenet"
+
+
+# Once adding other models, move to function and return the pretrain_transform
+if base_model == "mobilenet":
+    pretrain_transform = transforms.Compose([
+        # mobilenet_v2 normalize
+        transforms.Normalize((0.485, 0.456, 0.406), ((0.229, 0.224, 0.225)))
+        ])
 
 augment = transforms.Compose([
-    transforms.RandomResizedCrop(size=image_shape, scale=(0.8, 1.0), ratio=(1, 1)),
-    transforms.RandomRotation(degrees=15),
-    transforms.ToTensor(),
-    # rescale to be in (0, 1)
-    transforms.Normalize((0, 0, 0), ((255, 255, 255))),
-    # mobilenet_v2 normalize
-    transforms.Normalize((0.485, 0.456, 0.406), ((0.229, 0.224, 0.225)))
+    transforms.ToPILImage(),
+    transforms.RandomRotation(degrees=15, fill=(0,)),
+    transforms.RandomResizedCrop(size=image_shape, scale=(0.8, 1.0)),
+    transforms.ToTensor()
+    ])
+
+noaugment = transforms.Compose([
+    transforms.ToPILImage(),
+    transforms.Resize(size=image_shape),
+    transforms.ToTensor()
 ])
 
-train = image_data("IMGS/IR/train", batch_size=batch_size, image_shape=image_shape,
+
+# augment / noaugment
+# increase channels with : x = x.numpy()[0], y = np.array([x, x, x])
+# pretrained_transform
+
+
+train = h5_dataloader("H5_files/train.h5", transform=augment, 
+            batch_size=batch_size, shuffle=True)
+valid = h5_dataloader("H5_files/valid.h5", transform=noaugment, batch_size=batch_size,
+            shuffle=False)
+test  = h5_dataloader("H5_files/test.h5", transform=noaugment, batch_size=batch_size,
+            shuffle=False)
+
+
+""" #Load from JPEGs
+train = image_data("IMGS/IR/train", batch_size=300, image_shape=image_shape,
                     shuffle=True, augmentations=augment)
 valid = image_data("IMGS/IR/valid", batch_size=val_batch_size, image_shape=image_shape)
 test  = image_data("IMGS/IR/test" , batch_size=val_batch_size, image_shape=image_shape)
+"""
+
+# augment / noaugment
+# increase channels with : x = x.numpy()[0], y = np.array([x, x, x])
+# pretrained_transform
+
+
+train = h5_dataloader("H5_files/train.h5", transform=augment, 
+            batch_size=batch_size, shuffle=True)
+valid = h5_dataloader("H5_files/valid.h5", transform=noaugment, batch_size=batch_size,
+            shuffle=False)
+test  = h5_dataloader("H5_files/test.h5", transform=noaugment, batch_size=batch_size,
+            shuffle=False)
 
 model = Net()
 
 # 1/(number of samples for each class)
-class_weights = np.array([1./6302, 1./188, 1./2000])
+class_weights = np.array([1./5172, 1./166, 1./1652])
 class_weights = torch.FloatTensor(class_weights)
 
 criterion = nn.CrossEntropyLoss(weight=class_weights)
@@ -220,7 +306,7 @@ for epoch in range(10):
         optimizer.step()
         #print statistics
         train_loss += loss.item()
-        break
+
         # print every 5 mini-batch steps
         if (i+1)%5 == 0:
             _, predicted = torch.max(outputs, 1)
@@ -237,7 +323,7 @@ for epoch in range(10):
             print('Epoch %d\t| Step %d\t| Training loss : %.3f\t| Training acc : %.3f || %.3f' % 
                     (epoch + 1, (i+1), train_loss / 5, train_acc, train_acc_w))
             train_loss=0.0
-    break
+
     scheduler.step()
     print("\n*****************\n\tVALIDATING...")
     print("\n\t*** TRAINING REPORT ***")
