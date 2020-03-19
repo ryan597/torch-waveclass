@@ -17,12 +17,12 @@ if __name__ == '__main__':
     args = parser.parse_args()
     if args.i is None:
         raise Exception('ERROR : must give paths to [--i] image folder and [--h] .h5 save path')
-    elif args.h is None:
+    elif args.o is None:
         raise Exception('ERROR : Must give path to [--o] .h5 save path')
 
 
     root_dir = args.i[0]
-    hdf5_dir   = args.h[0]
+    hdf5_dir   = args.o[0]
 
     image_size = (480, 640) # could change this to be from first image read
     print(f'\nImage size :\t{image_size}')
@@ -33,7 +33,8 @@ if __name__ == '__main__':
         label = i.split('/')[-1]
         classes.append(label)
     print(f'Classes found :\t{classes}')
-    
+    classes = np.array(classes)
+
     image_path = glob.glob(root_dir+"/*/*.jpg")
     print(f'Images found :\t{len(image_path)}')
 
@@ -43,17 +44,17 @@ if __name__ == '__main__':
     # open h5 datatset
     with h5py.File(hdf5_dir, 'w') as h5_images:
         h5_images.create_dataset('images', train_shape, dtype=np.uint8)
-        h5_images.create_dataset('labels', (len(image_path), len(classes)), dtype=np.uint8)
+        h5_images.create_dataset('labels', (len(image_path), 1), dtype=np.uint8)
 
         for i in range(len(image_path)):
             # get label
             label = image_path[i].split('/')[3]
-            one_hot_label = (label==np.array(classes)).astype(int)
+            label = np.argmax(label==classes)
             # read img and label as uint8
             img = Image.open(image_path[i])
             img = np.array(img, dtype=np.uint8)
             # save to h5
-            h5_images['labels'][i, ...] = one_hot_label[None]
+            h5_images['labels'][i, ...] = label[None]
             h5_images['images'][i, ...] = img[None]
 
     size_h5 = os.path.getsize(hdf5_dir)
