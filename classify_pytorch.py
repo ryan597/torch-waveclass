@@ -71,8 +71,9 @@ class H5Dataset(Dataset):
         # Try: save H5 files as RGB, storage will be 3x, but test speed up in loading
         image = torch.from_numpy(np.array([image, image, image]))
         image = pretrain_transform(image)
-
-        return (image, self.labels[index])
+        # loss expects type long
+        label = np.long(self.labels[index])
+        return (image, label)
 
     def __len__(self):
         return self.dataset_len
@@ -92,7 +93,7 @@ class Net(nn.Module):
         self.norm1 = nn.BatchNorm1d(1280)
         self.fc1 = nn.Linear(1280, 10)
         self.drop1 = nn.Dropout(0.5)
-        self.fc2 = nn.Linear(10, 1)
+        self.fc2 = nn.Linear(10, 3)
 
     def forward(self, x):
         x = F.relu6(self.model(x))

@@ -44,7 +44,7 @@ if __name__ == '__main__':
     # open h5 datatset
     with h5py.File(hdf5_dir, 'w') as h5_images:
         h5_images.create_dataset('images', train_shape, dtype=np.uint8)
-        h5_images.create_dataset('labels', (len(image_path), 1), dtype=np.uint8)
+        h5_images.create_dataset('labels', (len(image_path), ), dtype=np.uint8)
 
         for i in range(len(image_path)):
             # get label
@@ -54,7 +54,7 @@ if __name__ == '__main__':
             img = Image.open(image_path[i])
             img = np.array(img, dtype=np.uint8)
             # save to h5
-            h5_images['labels'][i, ...] = label[None]
+            h5_images['labels'][i] = label
             h5_images['images'][i, ...] = img[None]
 
     size_h5 = os.path.getsize(hdf5_dir)
