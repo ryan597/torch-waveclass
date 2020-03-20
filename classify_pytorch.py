@@ -64,41 +64,8 @@ class H5Dataset(Dataset):
     def __len__(self):
         return self.dataset_len
 
-class Net(nn.Module):
-    """Convolutional Neural Network model for the classification of input images
-    Args:
-        x (tensor): inputs into the CNN, must be a torch.Tensor with shape
-            [B, 3, ...] with B the batch size, with 3 channels and arbitray image
-            input size ...
-        PLACEHOLDER
-    Returns:
-        x (tensor): outputs from the CNN forward pass as a torch.Tensor with
-            dimension [B, C], where B is the batch size and C is the number of
-            classes (3).
-    """
-    def __init__(self):
-        super(Net, self).__init__()
-        # load the pretrained model
-        pretrain = models.mobilenet_v2(pretrained=True)
-        for param in pretrain.features.parameters():
-            param.requires_grad = False
-        self.model = pretrain
-        # remove the top from pretrained and replace with custom fully connected
-        self.model.classifier = nn.Dropout(0.5)
-        self.norm1 = nn.BatchNorm1d(1280)
-        self.fc1 = nn.Linear(1280, 10)
-        self.drop1 = nn.Dropout(0.5)
-        self.fc2 = nn.Linear(10, 3)
 
-    def forward(self, x):
-        x = F.relu6(self.model(x))
-        x = self.norm1(x)
-        x = F.relu6(self.fc1(x))
-        x = self.drop1(x)
-        x = self.fc2(x)
-        return x
-
-def h5_dataloader(h5_filepath, transform=None, batch_size=32, shuffle=False, num_workers=2):
+def h5_dataloader(h5_filepath, transform=None, batch_size=32, shuffle=False, num_workers=4):
     """Function to return a torch.utils.DataLoader for the HDF5 files containing
     input images.
     Args:
@@ -122,6 +89,135 @@ def h5_dataloader(h5_filepath, transform=None, batch_size=32, shuffle=False, num
                             shuffle=shuffle,
                             num_workers=num_workers)
     return dataloader
+
+
+class Net(nn.Module):
+    """Convolutional Neural Network model for the classification of input images
+    Args:
+        x (tensor): inputs into the CNN, must be a torch.Tensor with shape
+            [B, 3, ...] with B the batch size, with 3 channels and arbitray image
+            input size ...
+        PLACEHOLDER
+    Returns:
+        x (tensor): outputs from the CNN forward pass as a torch.Tensor with
+            dimension [B, C], where B is the batch size and C is the number of
+            classes (3).
+    """
+    def __init__(self):
+        super(Net, self).__init__()
+        # load the pretrained model
+        pretrain = models.mobilenet_v2(pretrained=True)
+        for param in pretrain.features.parameters():
+            param.requires_grad = False
+        self.model = pretrain
+        # remove the top from pretrained and replace with custom fully connected
+        self.model.classifier = nn.Dropout(0.5)
+        self.norm1 = nn.BatchNorm1d(1280)
+        self.fc1 = nn.Linear(1280, 3)
+        self.drop1 = nn.Dropout(0.5)
+        self.fc2 = nn.Linear(10, 3)
+
+    def forward(self, x):
+        x = F.relu6(self.model(x))
+        x = self.norm1(x)
+        x = self.fc1(x)
+        #x = F.relu6(self.fc1(x))
+        #x = self.drop1(x)
+        #x = self.fc2(x)
+        return x
+
+def train_model(model,
+                train_dataloader,
+                validation_dataloader,
+                criterion,
+                learning_rate=0.001,
+                epochs=10,
+                scheduler=None,
+                class_weights=None,
+                model_save_prefix=None,
+                verbose=1):
+        """Train the torch.nn.Module for the specified number of epochs, perfoms optimization
+        with respect to the supplied criterion. Saves the model each epoch if the validation
+        loss improves.
+        Args:
+            model:
+            train_dataloader:
+            validation_dataloader:
+            criterion:
+            learning_rate:
+            epochs:
+            scheduler:
+            class_weights:
+            model_save_prefix:
+            verbose:
+        Returns:
+            history:
+        """
+        if verbose:
+            print(f"Training model for {epochs} epochs")
+            print(f"Class weights :\t{class_weights.numpy()}")
+            print(f"Model save file prefix :\t{model_save_prefix}")
+
+            print("\nStarting training...")
+        best_loss = np.inf
+
+        for epoch in range(epochs):
+            if verbose:
+                if scheduler is not None:
+                    lr = scheduler.get_lr()[0]
+                else:
+                    lr = learning_rate
+                print(f"Learning rate :\t {lr}")
+
+            model.train()
+            train_loss = 0.0
+
+            for i, (inputs, labels) in enumerate(train_dataloader, 0):
+                #inputs, labels = batch
+                inputs = inputs.to(device)
+                labels = labels.to(device)
+
+                optimizer.zero_grad()
+
+                # forward, backward + optimize
+                outputs = model(inputs)
+                loss = criterion(outputs, labels)
+                loss.backward()
+                optimizer.step()
+                # accumulate loss for epoch
+                train_loss += loss.item()
+
+                #print_statistics(outputs, labels)
+                # print every 5 mini-batch steps
+                if verbose & (i+1)%5==0 :
+                    if (i+1)%5 == 0:
+                        train_acc, train_acc_w = print_statistics(outputs, labels)
+
+                        print('Epoch %d\t| Step %d\t| Training loss : %.3f\t| Training acc : %.3f || %.3f' %
+                            (epoch + 1, (i+1), train_loss / 5, train_acc, train_acc_w))
+                        train_loss = 0.0
+
+            if scheduler is not None:
+                scheduler.step()
+
+            if verbose == 2:
+                print("\n\t*** TRAINING REPORT ***")
+                _ = class_report(model, criterion, train, BATCH_SIZE)
+            if verbose:
+                print("\n\t*** VALIDATION REPORT ***")
+                validation_loss = class_report(model, criterion, valid, VAL_BATCH_SIZE)
+
+            # save on the end of epoch if valid_loss improves
+            if validation_loss < best_loss:
+                print("Validation loss decreased :\t %.3f to %.3f" % (best_loss, validation_loss))
+                torch.save(model.state_dict(), "SAVED_MODELS/model_%s_%d_%.2f.pth" % (
+                    NAME_PREFIX, epoch, validation_loss))
+                print("Saved model \tmodel_%s_%d_%.2f.pth" % (
+                    NAME_PREFIX, epoch, validation_loss))
+                best_loss = validation_loss
+        
+        print("Finished Training")
+        #return history
 
 """
 def image_data(root_dir, image_shape=(96, 96), augmentations=None, batch_size=1, shuffle=False):
@@ -159,7 +255,9 @@ def image_data(root_dir, image_shape=(96, 96), augmentations=None, batch_size=1,
     return data_loader
 """
 
-def view_img_batch(data_loader):
+
+# Needs to be fixed:
+def view_img_batch(dataset):
     """View 25 images sampled from a batch from a DataLoader
     Args:
         data_loader: a torch.utils.data.DataLoader for an image dataset
@@ -167,23 +265,23 @@ def view_img_batch(data_loader):
         matplotlib.pyplot figure with 25 sample images displayed with respective
         labels as the titles on the plots.
     """
-    plt.figure(figsize=(10,10))
-    #data = iter(data_loader)
-    for batch in data_loader:
-        img_batch, label_batch = batch
-        for i, img in enumerate(img_batch):
-            # channels last
-            img = img.permute(1, 2, 0)
-            label = label_batch[i]
-            plt.subplot(3, 3, i+1)
-            plt.imshow(img.numpy())
-            plt.title(label.numpy())
-            plt.axis('off')
-            if i == 8:
-                plt.show()
-                break
-        break
-    plt.show()
+    classes = np.array(['plunge', 'spill', 'nonbreaking'])
+    pil = transforms.Compose([transforms.ToPILImage()])
+    plt.figure(figsize=(10, 10))
+    #for i, (image, label) in enumerate(dataset):
+    for i, batch in enumerate(dataset):
+        image, label = batch 
+        plt.subplot(3, 3, i+1)
+        ind = int(np.random.randint(0, len(dataset)))
+        pilimg = pil(image)
+        pilimg = pil(dataset.images[i])
+        img = pilimg
+        plt.imshow(img, cmap='gray')
+        plt.title(f"{classes[label]}")
+        plt.axis("off")
+        
+        if i == 8:
+            break
 
 def class_report(model, criterion, dataloader, batch_size):
     """Classification report generated by the model when predicting on the
@@ -208,12 +306,6 @@ def class_report(model, criterion, dataloader, batch_size):
     with torch.no_grad():
         model.eval()
         for batch in dataloader:
-            # drop leftover samples
-            if len(batch[0]) != batch_size:
-                predictions = predictions[:(indx-1)*batch_size]
-                true_labels = true_labels[:(indx-1)*batch_size]
-                break
-
             image_batch, label_batch = batch
             outputs = model(image_batch)
 
@@ -221,6 +313,11 @@ def class_report(model, criterion, dataloader, batch_size):
             loss = loss.item()
             # get the index of the max value
             _, predicted_batch = torch.max(outputs, 1)
+            # trim to total size
+            if len(batch[0]) != batch_size:
+                predictions = predictions[:(indx-1)*batch_size ]#+ len(batch[0])]
+                true_labels = true_labels[:(indx-1)*batch_size ]#+ len(batch[0])]
+                break
 
             predictions[indx*batch_size:(indx+1)*batch_size] = predicted_batch.numpy()
             true_labels[indx*batch_size:(indx+1)*batch_size] = label_batch.numpy()
@@ -233,6 +330,29 @@ def class_report(model, criterion, dataloader, batch_size):
 
     print("\nloss:\t\t%.3f" % (loss))
     return loss
+
+def print_statistics(outputs, labels):
+    """Calculates the accuracy of output predictions to the given labels
+    Args:
+        outputs:
+        labels:
+    Returns:
+        train_acc:
+        train_acc_w
+    """
+    class_correct = np.zeros(3)
+    class_total = np.zeros(3)
+    _, predicted = torch.max(outputs, 1)
+    binary_correct = (predicted == labels)
+
+    for j, correct in enumerate(binary_correct):
+        label = labels[j]
+        class_correct[int(label)] += correct
+        class_total[int(label)] += 1
+
+    overall_accuracy = 100 * np.sum(class_correct) / np.sum(class_total)
+    average_accuracy = 100./3 * np.sum((class_correct/class_total))
+    return overall_accuracy, average_accuracy
 
 ################################################################################
 ################################################################################
@@ -253,11 +373,16 @@ if __name__ == "__main__":
         NAME_PREFIX = "base_"
     print("model_"+NAME_PREFIX+"epoch_loss_acc")
 
+    if torch.cuda.is_available():
+        device = torch.device('cuda')
+    else:
+        device = torch.device('cpu')
 
     # Data and parameter settings
     BATCH_SIZE = 300
     VAL_BATCH_SIZE = 150
     IMAGE_SIZE = 96
+    INITIAL_EPOCHS = 10
     IMAGE_SHAPE = (IMAGE_SIZE, IMAGE_SIZE)
     BASE_MODEL = "mobilenet"
 
@@ -307,74 +432,26 @@ if __name__ == "__main__":
 
     model = Net()
 
-    # 1/(number of samples for each class)
+    # (other classes total)/(samples for class)
+    # then balance ratio so plunge is 1
+    # This means each plunge is worth 117 nonbreaking!
     # Change to function: calc_class_weights()
-    class_weights = np.array([1./5172, 1./166, 1./1652])
+    
+    #class_weights = np.array([1, 0.078, 0.00854])
+    class_weights = np.array([1./166, 1./1652, 1./5172])
     class_weights = torch.FloatTensor(class_weights)
 
     criterion = nn.CrossEntropyLoss(weight=class_weights)
     optimizer = optim.AdamW(model.parameters(), lr=0.001)
-    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=len(train))
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=INITIAL_EPOCHS)
     ################################################################################
 
+
+    train_model(model, train, valid, criterion, epochs=10, scheduler=scheduler, class_weights=class_weights,
+            model_save_prefix=NAME_PREFIX, verbose=2)
     # Change to function: train_model(model, train_dataloader, criterion, scheduler,
-    # epochs, class_weights, verbose, model_save_prefixf)
-    print("Starting training...")
-    best_loss = np.inf
-    for epoch in range(10):
-        print("\n*****************\n\tTRAINING...")
-        model.train()
-        train_loss=0.0
-        class_correct = np.zeros(3)
-        class_total = np.zeros(3)
-
-        print("\nLearning rate :\t %0.9f" % scheduler.get_lr()[0])
-        for i, data in enumerate(train, 0):
-            inputs, labels = data
-            optimizer.zero_grad()
-
-            # forward, backward + optimize
-            outputs = model(inputs)
-            loss = criterion(outputs, labels)
-            loss.backward()
-            optimizer.step()
-            #print statistics
-            train_loss += loss.item()
-
-            # print every 5 mini-batch steps
-            if (i+1)%5 == 0:
-                _, predicted = torch.max(outputs, 1)
-                c = (predicted == labels)
-
-                for j, correct in enumerate(c):
-                    label = labels[j]
-                    class_correct[int(label)] += correct
-                    class_total[int(label)] += 1
-
-                train_acc = 100 * np.sum(class_correct) / np.sum(class_total)
-                train_acc_w = 100./3 * np.sum((class_correct/class_total))
-
-                print('Epoch %d\t| Step %d\t| Training loss : %.3f\t| Training acc : %.3f || %.3f' %
-                      (epoch + 1, (i+1), train_loss / 5, train_acc, train_acc_w))
-                train_loss = 0.0
-
-        scheduler.step()
-        print("\n\t*** TRAINING REPORT ***")
-        _ = class_report(model, criterion, train, BATCH_SIZE)
-
-        print("\n\t*** VALIDATION REPORT ***")
-        validation_loss = class_report(model, criterion, valid, VAL_BATCH_SIZE)
-
-        # save on the end of epoch if valid_loss improves
-        if validation_loss < best_loss:
-            print("Validation loss decreased :\t %.3f to %.3f" % (best_loss, validation_loss))
-            torch.save(model.state_dict(), "SAVED_MODELS/model_%s_%d_%.2f.pth" % (
-                NAME_PREFIX, epoch, validation_loss))
-            print("Saved model \tmodel_%s_%d_%.2f.pth" % (
-                NAME_PREFIX, epoch, validation_loss))
-            best_loss = validation_loss
-    print("Finished Training")
-
+    # epochs, class_weights, verbose, model_save_prefix)
+    
     ################################################################################
 
     # Loading model
