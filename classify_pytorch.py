@@ -257,8 +257,8 @@ def image_data(root_dir, image_shape=(96, 96), augmentations=None, batch_size=1,
 
 
 # Needs to be fixed:
-def view_img_batch(dataset):
-    """View 25 images sampled from a batch from a DataLoader
+def view_img_batch(dataloader):
+    """View 25 images sampled from a batch from a dataset
     Args:
         data_loader: a torch.utils.data.DataLoader for an image dataset
     Returns:
@@ -269,7 +269,11 @@ def view_img_batch(dataset):
     pil = transforms.Compose([transforms.ToPILImage()])
     plt.figure(figsize=(10, 10))
     #for i, (image, label) in enumerate(dataset):
-    for i, batch in enumerate(dataset):
+    for i, _ in enumerate(data):
+        try: # Dataloader
+            image = data.dataset[0][ind]
+            label = data.dataset[1][ind]
+
         image, label = batch 
         plt.subplot(3, 3, i+1)
         ind = int(np.random.randint(0, len(dataset)))
