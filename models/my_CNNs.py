@@ -20,7 +20,7 @@ class Net(nn.Module):
             dimension [B, C], where B is the batch size and C is the number of
             classes (3).
     """
-    def __init__(self, base):
+    def __init__(self, base=None):
         super(Net, self).__init__()
 
         model_dict = {
@@ -33,11 +33,14 @@ class Net(nn.Module):
             "googlenet" : models.googlenet,
             "mobilenet" : models.mobilenet_v2,
         }
+        if base is None:
+            base = 'resnet18'
+        self.base = base
 
         # load the pretrained model
         base_model = model_dict[base]
         pretrained = base_model(pretrained=True)
-        for param in pretrained.features.parameters():
+        for param in pretrained.parameters():
             param.requires_grad = False
         self.model = pretrained
         # remove the top from pretrained and replace with custom fully connected
