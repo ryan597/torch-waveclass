@@ -3,6 +3,7 @@
 import h5py
 import matplotlib.pyplot as plt
 import numpy as np
+import torch
 from torch.utils.data import DataLoader, Dataset
 
 
@@ -66,3 +67,23 @@ def view_batch(dataloader, num_samples=16, shape=(4, 4)):
         plt.axis("off")
         if i == (num_samples-1):
             break
+
+def class_weight(dataset):
+    """Calculates and returns class weights as a torch.Tensor"""
+    classes = np.array([])
+    class_totals = np.array([])
+    i = 0
+    while i < len(dataset):
+        print("problem")
+        label = dataset[i][1]
+        print("here")
+        if label not in classes:
+            classes = np.append(classes, label)
+            class_totals = np.append(class_totals, 1)
+        else:
+            class_totals[int(label)] += 1
+        i += 1
+
+    weights = torch.FloatTensor(np.ones_like(classes) / class_totals)
+
+    return weights

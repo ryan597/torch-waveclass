@@ -69,7 +69,7 @@ def img_to_h5(directory, h5file, image_shape=None):
         for i in range(len_images):
             # get label
             label = image_path[i].split('/')[-2]
-            label = np.argmax(label==classes)
+            label = np.argmax(label == classes)
             # read img and label as uint8
             img = Image.open(image_path[i])
             img = img.resize(image_shape).convert('L')
@@ -91,33 +91,33 @@ def parse_args():
         "folder and path to store .h5 file")
 
     parser.add_argument('--i', metavar='DIR', type=str, nargs=1,
-                        help="Enter the path to the parent directory contraining " + 
+                        help="Enter the path to the parent directory contraining " + \
                         "the class folders. eg, IMGS/IR/train")
 
     parser.add_argument('--o', metavar='H5', type=str, nargs=1,
-                        help='Enter the path to the save the .h5 file in. " +
-                        "eg. H5_files/train.h5')
-    
+                        help="Enter the path to the save the .h5 file in. " + \
+                        "eg. H5_files/train.h5")
+
     parser.add_argument('--s', metavar='SHAPE', type=int, nargs=2,
-                        help="Enter image shape as <W H> or " +
+                        help="Enter image shape as <W H> or " + \
                         "to calculate average shape <0 0>")
 
     p_args = parser.parse_args()
 
     if p_args.i is None:
-        raise Exception("""ERROR : must give paths to [--i] image folder 
-                        and [--h] .h5 save path""")
+        raise Exception("ERROR : must give paths to [--i] image folder " + \
+                        "and [--h] .h5 save path")
     if p_args.o is None:
         raise Exception("ERROR : Must give path to [--o] .h5 save path")
     if p_args.s is None:
-        raise Exception("""ERROR : Specify image size [--s]<W H> or 
-                        to calculate average size [--s]<0 0>""")
+        raise Exception("ERROR : Specify image size [--s]<W H> or " + \
+                        "to calculate average size [--s]<0 0>")
 
     root_dir = p_args.i[0]
     hdf5_dir = p_args.o[0]
 
     if p_args.s[0] == 0:
-        image_shape==None
+        image_shape = None
     else:
         image_shape = (p_args.s[0], p_args.s[1])
 

@@ -92,27 +92,28 @@ def train_model(model,
 
         scheduler.step()
 
-        if verbose == 2:
+        if verbose:
+            # check for overfitting train
             print("\n\t*** TRAINING REPORT ***")
             _ = callbacks.class_report(model, criterion, train_dataloader)
-        if verbose:
             print("\n\t*** VALIDATION REPORT ***")
-            validation_loss = callbacks.class_report(model, criterion, validation_dataloader)
+            val_loss, val_auc = callbacks.class_report(model, criterion, validation_dataloader)
 
         # save on the end of epoch if valid_loss improves
-        if validation_loss < best_loss:
-            print("Validation loss decreased :\t %.3f to %.3f" % (best_loss, validation_loss))
-            torch.save(model.state_dict(), "SAVED_MODELS/model_%s_%d_%.2f.pth" % (
-                       model.base, epoch, validation_loss))
-            print("Saved model \tmodel_%s_%d_%.2f.pth" % (
-                  model.base, epoch, validation_loss))
-            best_loss = validation_loss
+        if val_loss < best_loss:
+            torch.save(model.state_dict(),
+                       f"SAVED_MODELS/model_{model.base}_{epoch}_{val_loss:.4f}_{val_auc:.3f}.pth")
+
+            print(f"Validation loss decreased :\t {best_loss:.4f} to {val_loss:.4f}")
+            print(f"Saved model \tmodel_{model.base}_{epoch}_{val_loss:.4f}_{val_auc:.3f}.pth")
+            # save model as model_{model.base}_best.pth then reload immediately
+            best_loss = val_loss
 
     print("Finished Training")
     if verbose:
         end = time.perf_counter()
         print(f"Training time : \t {end - start} seconds")
-    #return history
+
 
 
 def parse_args():
@@ -138,36 +139,25 @@ def main(config):
     """Fetch program settings from supplied config dictionary, get transforms for
     preprocessing images and load the datasets.  Then loads the CNN model specified
     in the config and begins training."""
-    try:
-        batch_size = config['batch_size']
-        val_batch_size = config['val_batch_size']
-        image_shape = config['image_shape']
-        initial_epochs = config['initial_epochs']
-        base_model = config['base_model']
-        verbose = config['verbose']
-    except:
-        raise Exception("CONFIG PARAMETERS NOT FOUND...")
 
     # import the image transformations (augmentations and preprocessing pretrained)
-    augment = transformations.get_transform(augment=True, image_shape=image_shape)
-    no_augs = transformations.get_transform(image_shape=image_shape)
+    augment = transformations.get_transform(augment=True, image_shape=config['image_shape'])
+    no_augs = transformations.get_transform(image_shape=config['image_shape'])
 
     # Change to function:
-    train = my_utils.h5_dataloader("H5_files/train.h5", transform=augment,
-                                   batch_size=batch_size, shuffle=True)
+    train = my_utils.h5_dataloader("data/H5_files/train.h5", transform=augment,
+                                   batch_size=config['batch_size'], shuffle=True)
 
-    valid = my_utils.h5_dataloader("H5_files/valid.h5", transform=no_augs,
-                                   batch_size=val_batch_size, shuffle=False)
+    valid = my_utils.h5_dataloader("data/H5_files/valid.h5", transform=no_augs,
+                                   batch_size=config['val_batch_size'], shuffle=False)
 
     #test = my_utils.h5_dataloader("H5_files/test.h5", transform=no_augs,
-    #                              batch_size=val_batch_size shuffle=False)
+    #                              batch_size=config['val_batch_size'], shuffle=False)
 
-    model = my_CNNs.Net(base_model)
+    model = my_CNNs.Net(config['base_model'])
 
-    # Change to function: calc_class_weights() in my_utils
-    class_weights = np.array([1./166, 1./1652, 1./5172])
-    class_weights = torch.FloatTensor(class_weights)
-
+    class_weights = my_utils.class_weight(train.dataset)
+    print(class_weights)
     criterion = nn.CrossEntropyLoss(weight=class_weights)
     optimizer = optim.AdamW(model.parameters(), lr=0.001)
     scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer,
@@ -179,8 +169,8 @@ def main(config):
 
     experiment.display()
 
-    train_model(model, train, valid, criterion, epochs=initial_epochs, scheduler=scheduler,
-                verbose=verbose)
+    train_model(model, train, valid, criterion, epochs=config['initial_epochs'],
+                scheduler=scheduler, verbose=config['verbose'])
 
     experiment.end()
 
@@ -196,6 +186,3 @@ if __name__ == "__main__":
         CONFIG = json.load(f)
 
     main(CONFIG)
-
-################################################################################
-################################################################################
