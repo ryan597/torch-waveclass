@@ -1,3 +1,5 @@
+"""Modules to help with loading data from HDF5 format and viewing samples"""
+
 import h5py
 import matplotlib.pyplot as plt
 import numpy as np
