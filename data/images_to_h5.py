@@ -3,6 +3,8 @@ format with the respective labels. The root directory must
 contain folders with the class names, these will act as the
 labels
 """
+
+
 import argparse
 import glob
 import os
