@@ -1,10 +1,8 @@
 *.orig
 *.swp
-*.json
 __pycache__/
 IMGS
 SAVED_MODELS
 H5_files
 flow
 spyflow
-playground.ipynb

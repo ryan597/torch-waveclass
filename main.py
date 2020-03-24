@@ -35,7 +35,7 @@ if torch.cuda.is_available():
 else:
     DEVICE = torch.device('cpu')
 
-print(f"Using {DEVICE}")
+print(f"Using {DEVICE}\n")
 ################################################################################
 
 
