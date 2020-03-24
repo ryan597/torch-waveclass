@@ -30,17 +30,18 @@ def get_transform(augment=False, image_shape=(224, 224)):
     if augment:
         preprocess_transform = T.Compose([
             T.ToPILImage(),
-            T.RandomRotation(degrees=15, fill=(0,)),
-            T.RandomResizedCrop(size=image_shape, scale=(0.8, 1.0))
+            T.Grayscale(num_output_channels=3),
+            T.RandomRotation(degrees=15)
+            T.RandomResizedCrop(size=image_shape, scale=(0.8, 1.0)),
         ])
     else:
         preprocess_transform = T.Compose([
             T.ToPILImage(),
+            T.Grayscale(num_output_channels=3),
             T.Resize(size=image_shape)
         ])
 
     pretrain_transform = T.Compose([
-        T.Grayscale(num_output_channels=3),
         T.ToTensor(),
         T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
