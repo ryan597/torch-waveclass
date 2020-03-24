@@ -18,11 +18,11 @@ import time
 import os
 import json
 
+from comet_ml import Experiment
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from comet_ml import Experiment
 
 import my_utils
 from callbacks import callbacks
@@ -165,14 +165,14 @@ def main(config):
                                                                T_mult=2)
 
     #### COMET
-    experiment = Experiment(project_name='waveclass', workspace='ryan597')
+    #experiment = Experiment(project_name='waveclass', workspace='ryan597')
 
-    experiment.display()
+    #experiment.display()
 
     train_model(model, train, valid, criterion, epochs=config['initial_epochs'],
                 scheduler=scheduler, verbose=config['verbose'])
 
-    experiment.end()
+    #experiment.end()
 
 
 ################################################################################
