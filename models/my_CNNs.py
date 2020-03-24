@@ -21,7 +21,7 @@ class Net(nn.Module):
             classes (3).
     """
     def __init__(self, base=None):
-        super(Net, self).__init__()
+        super().__init__()
 
         model_dict = {
             "resnet18" : models.resnet18,
@@ -39,22 +39,22 @@ class Net(nn.Module):
 
         # load the pretrained model
         base_model = model_dict[base]
-        pretrained = base_model(pretrained=True)
-        for param in pretrained.parameters():
+        base_model = base_model(pretrained=True)
+        for param in base_model.parameters():
             param.requires_grad = False
-        self.model = pretrained
-        # remove the top from pretrained and replace with custom fully connected
-        self.model.classifier = nn.Dropout(0.5)
-        self.norm1 = nn.BatchNorm1d(1280)
-        self.fc1 = nn.Linear(1280, 10)
-        self.drop1 = nn.Dropout(0.5)
-        self.fc2 = nn.Linear(10, 3)
+        self.pretrained = nn.Sequential(*list(base_model.children())[:-1])
+
+        self.fc = nn.Sequential(
+            nn.Dropout(0.5),
+            nn.BatchNorm1d(512),
+            nn.Linear(512, 10),
+            nn.ReLU(),
+            nn.Dropout(0.5),
+            nn.Linear(10, 3)
+        )
 
     def forward(self, x):
-        x = F.relu6(self.model(x))
-        x = self.norm1(x)
-        x = self.fc1(x)
-        x = F.relu6(self.fc1(x))
-        x = self.drop1(x)
-        x = self.fc2(x)
+        x = self.pretrained(x)
+        x = x.view(x.size(0), -1)
+        x = self.fc(x)
         return x
