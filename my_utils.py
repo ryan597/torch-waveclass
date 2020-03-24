@@ -74,9 +74,8 @@ def class_weight(dataset):
     class_totals = np.array([])
     i = 0
     while i < len(dataset):
-        print("problem")
         label = dataset[i][1]
-        print("here")
+        
         if label not in classes:
             classes = np.append(classes, label)
             class_totals = np.append(class_totals, 1)
