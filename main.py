@@ -43,25 +43,23 @@ def train_model(model,
                 train_dataloader,
                 validation_dataloader,
                 criterion,
-                scheduler=None,
                 epochs=10,
-                verbose=1):
+                comet_expt=None,
+                scheduler=None):
     """Train the torch.nn.Module for the specified number of epochs, perfoms optimization
     with respect to the supplied criterion. Saves the model each epoch if the validation
     loss improves.
     """
 
-    if verbose:
-        print(f"Training model for {epochs} epochs")
-        print(f"Class weights :\t{criterion.weight}")
-        print(f"Base model :\t{model.base}")
-        print("\nStarting training...")
-        start = time.perf_counter()
+    print(f"Training model for {epochs} epochs")
+    print(f"Class weights :\t{criterion.weight}")
+    print(f"Base model :\t{model.base}")
+    print("\nStarting training...")
+    start = time.perf_counter()
     best_loss = np.inf
 
     for epoch in range(epochs):
-        if verbose:
-            print(f"Learning rate :\t {scheduler.get_lr()}")
+        print(f"Learning rate :\t {scheduler.get_lr()[0]}")
 
         model.train()
         train_loss = 0.0
@@ -85,6 +83,14 @@ def train_model(model,
             if (i+1) % 5 == 0:
                 train_acc, train_acc_w = callbacks.print_statistics(outputs, labels)
 
+                # LOGGING
+                callbacks.comet_logging(comet_expt,
+                                        ('train_loss', train_loss),
+                                        ('train_acc', train_acc),
+                                        ('train_acc_w', train_acc_w),
+                                        step=i+1,
+                                        epoch=epoch+1)
+
                 print(f"Epoch {epoch+1}\t| Step {i+1}\t| " + \
                       f"Training loss : {train_loss / 5 :.4f}\t| " + \
                       f"Training acc : {train_acc:.3f} || {train_acc_w:.3f}")
@@ -92,12 +98,18 @@ def train_model(model,
 
         scheduler.step()
 
-        if verbose:
-            # check for overfitting train
-            print("\n\t*** TRAINING REPORT ***")
-            _ = callbacks.class_report(model, criterion, train_dataloader)
-            print("\n\t*** VALIDATION REPORT ***")
-            val_loss, val_auc = callbacks.class_report(model, criterion, validation_dataloader)
+        # check for overfitting train
+        print("\n\t*** TRAINING REPORT ***")
+        _ = callbacks.class_report(model, criterion, train_dataloader)
+        print("\n\t*** VALIDATION REPORT ***")
+        val_loss, val_auc = callbacks.class_report(model, criterion, validation_dataloader)
+
+        # LOGGING
+        callbacks.comet_logging(comet_expt,
+                                ('val_loss', val_loss),
+                                ('val_AUC', val_auc),
+                                ('learning_rate', scheduler.get_last_lr()[0]),
+                                epoch=epoch+1)
 
         # save on the end of epoch if valid_loss improves
         if val_loss < best_loss:
@@ -110,9 +122,8 @@ def train_model(model,
             best_loss = val_loss
 
     print("Finished Training")
-    if verbose:
-        end = time.perf_counter()
-        print(f"Training time : \t {end - start} seconds")
+    end = time.perf_counter()
+    print(f"Training time : \t {end - start} seconds")
 
 
 
@@ -135,7 +146,7 @@ def parse_args():
     return config_filename
 
 
-def main(config):
+def main(config, comet_expt=None):
     """Fetch program settings from supplied config dictionary, get transforms for
     preprocessing images and load the datasets.  Then loads the CNN model specified
     in the config and begins training."""
@@ -155,24 +166,21 @@ def main(config):
     #                              batch_size=config['val_batch_size'], shuffle=False)
 
     model = my_CNNs.Net(config['base_model'])
+    model = model.to(DEVICE)
 
-    class_weights = my_utils.class_weight(train.dataset)
+    class_weights = my_utils.class_weight(train.dataset).to(DEVICE)
     print(class_weights)
-    criterion = nn.CrossEntropyLoss(weight=class_weights)
+    criterion = nn.CrossEntropyLoss(weight=class_weights).to(DEVICE)
+
     optimizer = optim.AdamW(model.parameters(), lr=0.001)
     scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer,
                                                                T_0=5,
                                                                T_mult=2)
 
-    #### COMET
-    #experiment = Experiment(project_name='waveclass', workspace='ryan597')
-
-    #experiment.display()
 
     train_model(model, train, valid, criterion, epochs=config['initial_epochs'],
-                scheduler=scheduler, verbose=config['verbose'])
+                comet_expt=comet_expt, scheduler=scheduler)
 
-    #experiment.end()
 
 
 ################################################################################
@@ -185,7 +193,10 @@ if __name__ == "__main__":
     with open(f"{os.getcwd()+S}models{S}configs{S+CONFIG_FILENAME}.json") as f:
         CONFIG = json.load(f)
 
-    for i in CONFIG:
-        print(f"{i} \t: {CONFIG[i]}")
+    for value in CONFIG:
+        print(f"{value} \t: {CONFIG[value]}")
 
-    main(CONFIG)
+    COMET_EXPT = Experiment(project_name="waveclass", workspace="ryan597")
+    COMET_EXPT.log_parameters(CONFIG)
+
+    main(CONFIG, COMET_EXPT)

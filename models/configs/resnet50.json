@@ -3,6 +3,6 @@
     "val_batch_size" : 150,
     "image_shape" : [224, 224],
     "initial_epochs" : 30,
-    "base_model" : "resnet18",
+    "base_model" : "resnet50",
     "verbose" : 1
 }

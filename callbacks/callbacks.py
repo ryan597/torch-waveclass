@@ -17,8 +17,8 @@ def class_report(model, criterion, dataloader):
     batch_size = dataloader.batch_size
     size_dataset = len(dataloader.dataset)
 
-    true_labels = torch.zeros(size_dataset)
-    output_full = torch.zeros((size_dataset, 3))
+    true_labels = torch.zeros(size_dataset).to(DEVICE)
+    output_full = torch.zeros((size_dataset, 3)).to(DEVICE)
 
     model.eval()
     with torch.no_grad():
@@ -34,8 +34,8 @@ def class_report(model, criterion, dataloader):
 
         loss = criterion(output_full, true_labels).item()
 
-    true_labels = true_labels.to('cpu').numpy()
-    output_full = output_full.to('cpu').numpy()
+    true_labels = true_labels.to('cpu').numpy().astpye(int)
+    output_full = output_full.to('cpu').numpy().astpye(int)
 
     # one hot encode for roc_auc_score
     one_hot_labels = np.zeros((size_dataset, 3))
@@ -71,3 +71,13 @@ def print_statistics(outputs, labels):
 #def save_model():
 
 #def verbose_print():
+
+
+def comet_logging(comet_expt, *args, **kwargs):
+    """Function for logging metrics to comet_ml experiments.
+    Pass the metric with associated value as a tuple along with the step and epoch
+    as follows:
+    comet_logging(EXPT, (m1, v1), (m2, v2), step=5, epoch=2)."""
+    if comet_expt is not None:
+        for metric, value in args:
+            comet_expt.log_metric(metric, value, **kwargs)
