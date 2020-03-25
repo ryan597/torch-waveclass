@@ -35,11 +35,11 @@ METHOD=1
 ALPHA=3
 GAMMA=2
 LAMBDA=0
-NSCALES=7
+NSCALES=8
 ZOOM=0.5
 EPSILON=0.001
 ZIN=1
-ZOUT=10
+ZOUT=15
 VERBOSE=0
 VIEW=30
 
@@ -73,7 +73,7 @@ if [[ $impath == "all" ]]; then
 	for i in "${targets[@]}"
 		do for j in "${classes[@]}"
 			do 
-				tvflow "IMGS/IR/$i/$j" "IMGS/flow/$i/$j"
+				tvflow "../data/IMGS/IR/$i/$j" "../data/IMGS/flow/$i/$j"
 		done
 	done
 else 

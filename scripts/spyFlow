@@ -44,7 +44,7 @@ if [[ $impath == "all" ]]; then
     for i in "${targets[@]}"
         do for j in "${classes[@]}"
             do 
-                spyflow "IMGS/IR/$i/$j" "IMGS/spyflow/$i/$j"
+                spyflow "../data/IMGS/IR/$i/$j" "../data/IMGS/spyflow/$i/$j"
         done
     done
 else 
