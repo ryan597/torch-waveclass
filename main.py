@@ -82,7 +82,7 @@ def train_model(model,
             train_loss += loss.item()
 
             # print every 5 mini-batch steps
-            if verbose & (i+1) % 5 == 0:
+            if (i+1) % 5 == 0:
                 train_acc, train_acc_w = callbacks.print_statistics(outputs, labels)
 
                 print(f"Epoch {epoch+1}\t| Step {i+1}\t| " + \
@@ -184,5 +184,8 @@ if __name__ == "__main__":
     S = os.sep
     with open(f"{os.getcwd()+S}models{S}configs{S+CONFIG_FILENAME}.json") as f:
         CONFIG = json.load(f)
+
+    for i in CONFIG:
+        print(f"{i} \t: {CONFIG[i]}")
 
     main(CONFIG)

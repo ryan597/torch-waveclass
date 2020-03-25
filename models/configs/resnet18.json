@@ -2,7 +2,7 @@
     "batch_size" : 200,
     "val_batch_size" : 150,
     "image_shape" : [224, 224],
-    "initial_epochs" : 20,
+    "initial_epochs" : 10,
     "base_model" : "resnet18",
     "verbose" : 1
 }
