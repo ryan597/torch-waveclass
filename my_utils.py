@@ -61,12 +61,27 @@ def view_batch(dataloader, num_samples=16, shape=(4, 4)):
         plt.subplot(shape[0], shape[1], i+1)
         sample_image = dataset.images[rand_indx[i]]
         sample_label = dataset.labels[rand_indx[i]]
-
         plt.imshow(sample_image, cmap='gray')
         plt.title(f"{classes[sample_label]}")
         plt.axis("off")
         if i == (num_samples-1):
             break
+
+def show_trans_batch(dataloader):
+    """View sample images which have been tansformed and randomly sampled
+    from the dataloader"""
+    classes = np.array(['plunge', 'spill', 'nonbreaking'])
+    plt.figure(figsize=(10, 10))
+    for i,(img_batch, lab_batch) in enumerate(dataloader):
+        for j, im in enumerate(img_batch):
+            plt.subplot(4, 4, j+1)
+            plt.imshow(im[0], cmap='gray')
+            plt.title(f"{classes[lab_batch[j].numpy()]}")
+            plt.axis("off")
+            if j == 15:
+                break
+        break
+
 
 def class_weight(dataset):
     """Calculates and returns class weights as a torch.Tensor"""
