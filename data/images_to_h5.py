@@ -52,7 +52,7 @@ def img_to_h5(directory, h5file, image_shape=None):
     print(f"search {directory} \nsave to {h5file}")
     classes = find_classes(directory)
 
-    image_path = glob.glob(directory+'/*/*.jpeg')
+    image_path = glob.glob(directory+'/*/*.jpg')
     len_images = len(image_path)
     print(f"images found :\t{len_images}")
 
@@ -60,7 +60,7 @@ def img_to_h5(directory, h5file, image_shape=None):
         print("image shape not supplied, calculating average width and heigth")
         image_shape = average_shape(image_path)
 
-    h5_shape = (len_images, (image_shape))
+    h5_shape = (len_images, image_shape[0], image_shape[1])
 
     with h5py.File(h5file, 'w') as h5_images:
         h5_images.create_dataset('images', h5_shape, dtype=np.uint8)
