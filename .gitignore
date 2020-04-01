@@ -6,3 +6,7 @@ SAVED_MODELS
 H5_files
 flow
 spyflow
+PLOTS
+setting.json
+.gitignore
+*.ipynb
