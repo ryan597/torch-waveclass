@@ -16,9 +16,9 @@ def class_report(model, criterion, dataloader):
     """
     batch_size = dataloader.batch_size
     size_dataset = len(dataloader.dataset)
-
+    num_classes = len(dataloader.dataset.classes)
     true_labels = torch.zeros(size_dataset).to(DEVICE)
-    output_full = torch.zeros((size_dataset, 3)).to(DEVICE)
+    output_full = torch.zeros((size_dataset, num_classes)).to(DEVICE)
 
     model.eval()
     with torch.no_grad():
@@ -32,13 +32,13 @@ def class_report(model, criterion, dataloader):
             output_full[i*batch_size:i*batch_size+len_batch] = model(image_batch)
             true_labels[i*batch_size:i*batch_size+len_batch] = label_batch
 
-        loss = criterion(output_full, true_labels).item()
+        loss = criterion(output_full, true_labels.to(torch.long)).item()
 
-    true_labels = true_labels.to('cpu').numpy().astpye(int)
-    output_full = output_full.to('cpu').numpy().astpye(int)
+    true_labels = true_labels.to('cpu').numpy().astype(int)
+    output_full = output_full.to('cpu').numpy().astype(int)
 
     # one hot encode for roc_auc_score
-    one_hot_labels = np.zeros((size_dataset, 3))
+    one_hot_labels = np.zeros((size_dataset, num_classes))
     for i, value in enumerate(true_labels):
         one_hot_labels[i, value] = 1
     # tensors to numpy arrays
@@ -55,6 +55,7 @@ def print_statistics(outputs, labels):
     """Calculates the accuracy of output predictions to the given labels"""
     class_correct = np.zeros(3)
     class_total = np.zeros(3)
+
     _, predicted = torch.max(outputs, 1)
     binary_correct = (predicted == labels)
 

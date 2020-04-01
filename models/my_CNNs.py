@@ -2,7 +2,7 @@
 Class to give an instance of a pretrained CNN with a custom fully connected
 layer on top.
 """
-
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import models
@@ -77,7 +77,6 @@ class UNet(nn.Module):
         super().__init__()
         down_sizes = [in_channels, *layer_sizes]
         up_sizes = [*layer_sizes[::-1] , out_channels]
-        self.copies = []
 
         self.conv_down = nn.ModuleList([
             DoubleConv(in_ch, out_ch) for in_ch, out_ch in zip(down_sizes, down_sizes[1:])
@@ -96,15 +95,16 @@ class UNet(nn.Module):
         ])
 
     def forward(self, x):
+        copies = []
         for i, conv in enumerate(self.conv_down[:-1]):
             x = conv(x)
-            self.copies.append(x)
+            copies.append(x)
             x = self.down_sample[i](x)
         
         x = self.conv_down[-1](x)
         for i, conv in enumerate(self.conv_up[:-1]):
             x = self.up_sample[i](x)
-            x = conv(torch.cat((x, self.copies[-(i+1)]), dim=1))
+            x = conv(torch.cat((x, copies[-(i+1)]), dim=1))
 
         x = self.conv_up[-1](x)
         return x
