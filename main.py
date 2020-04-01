@@ -50,10 +50,6 @@ def train_model(model,
     with respect to the supplied criterion. Saves the model each epoch if the validation
     loss improves.
     """
-
-    print(f"Training model for {epochs} epochs")
-    print(f"Class weights :\t{criterion.weight}")
-    print(f"Base model :\t{model.base}")
     print("\nStarting training...")
     start = time.perf_counter()
     best_loss = np.inf
@@ -118,7 +114,7 @@ def train_model(model,
 
             print(f"Validation loss decreased :\t {best_loss:.4f} to {val_loss:.4f}")
             print(f"Saved model \tmodel_{model.base}_{epoch}_{val_loss:.4f}_{val_auc:.3f}.pth")
-            # save model as model_{model.base}_best.pth then reload immediately
+            # save model as model_{model.base}_best.pth then reload immediately for fine tuning?
             best_loss = val_loss
 
     print("Finished Training")
@@ -141,7 +137,7 @@ def parse_args():
     if args.c is None:
         config_filename = "resnet18"
     else:
-        config_filename = args.m[0]
+        config_filename = args.c[0]
 
     return config_filename
 
@@ -155,24 +151,22 @@ def main(config, comet_expt=None):
     augment = transformations.get_transform(augment=True, image_shape=config['image_shape'])
     no_augs = transformations.get_transform(image_shape=config['image_shape'])
 
-    # Change to function:
-    train = my_utils.h5_dataloader("data/H5_files/train.h5", transform=augment,
-                                   batch_size=config['batch_size'], shuffle=True)
+    train = my_utils.image_dataloader(config['train'], transform=augment,
+                                      batch_size=config['batch_size'], shuffle=True)
 
-    valid = my_utils.h5_dataloader("data/H5_files/valid.h5", transform=no_augs,
-                                   batch_size=config['val_batch_size'], shuffle=False)
+    valid = my_utils.image_dataloader(config['valid'], transform=no_augs,
+                                      batch_size=config['val_batch_size'], shuffle=False)
 
     #test = my_utils.h5_dataloader("H5_files/test.h5", transform=no_augs,
     #                              batch_size=config['val_batch_size'], shuffle=False)
 
-    model = my_CNNs.Net(config['base_model'])
+    model = my_CNNs.Net(config)
     model = model.to(DEVICE)
 
     class_weights = my_utils.class_weight(train.dataset).to(DEVICE)
-    print(class_weights)
     criterion = nn.CrossEntropyLoss(weight=class_weights).to(DEVICE)
 
-    optimizer = optim.AdamW(model.parameters(), lr=0.001)
+    optimizer = optim.AdamW(model.parameters(), lr=0.01)
     scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer,
                                                                T_0=5,
                                                                T_mult=2)

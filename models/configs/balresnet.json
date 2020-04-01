@@ -1,12 +1,12 @@
 {
     "batch_size" : 100,
     "val_batch_size" : 75,
-    "image_shape" : [128, 128],
+    "image_shape" : [224, 224],
     "initial_epochs" : 15,
     "base_model" : "resnet50",
-    "train" : "data/IMGS/IR/train",
-    "valid" : "data/IMGS/IR/valid",
+    "train_path" : "data/IMGS/IR/baltrain",
+    "valid_path" : "data/IMGS/IR/balvalid",
     "fc_in" : 2048,
-    "fc_out" : 3,
+    "fc_out" : 2,
     "verbose" : 1
 }

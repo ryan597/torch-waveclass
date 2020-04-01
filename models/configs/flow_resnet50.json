@@ -1,0 +1,11 @@
+{
+    "batch_size" : 100,
+    "val_batch_size" : 75,
+    "image_shape" : [224, 224],
+    "initial_epochs" : 15,
+    "base_model" : "resnet50",
+    "train" : "data/IMGS/flow/train",
+    "valid" : "data/IMGS/flow/valid",
+    "fc_in" : 2048,
+    "fc_out" : 3
+}

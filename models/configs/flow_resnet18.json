@@ -1,11 +1,11 @@
 {
-    "batch_size" : 100,
+    "batch_size" : 200,
     "val_batch_size" : 75,
-    "image_shape" : [224, 224],
+    "image_shape" : [96, 96],
     "initial_epochs" : 15,
     "base_model" : "resnet18",
-    "train" : "data/IMGS/IR/train",
-    "valid" : "data/IMGS/IR/valid",
+    "train" : "data/IMGS/flow/train",
+    "valid" : "data/IMGS/flow/valid",
     "fc_in" : 512,
     "fc_out" : 3,
     "verbose" : 1
