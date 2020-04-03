@@ -1,13 +1,12 @@
 {
-    "data" : "IR",
+    "data" : "OF",
     "batch_size" : 100,
     "val_batch_size" : 75,
     "image_shape" : [224, 224],
     "epochs" : 10,
     "base_model" : "resnet50",
-    "train" : "data/H5_files/IRtrain.h5",
-    "valid" : "data/H5_files/IRvalid.h5",
+    "train" : "data/H5_files/Flowtrain.h5",
+    "valid" : "data/H5_files/Flowvalid.h5",
     "fc_in" : 2048,
-    "fc_out" : 3,
-    "verbose" : 1
+    "fc_out" : 3
 }

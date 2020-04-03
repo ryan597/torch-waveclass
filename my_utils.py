@@ -1,22 +1,15 @@
-"""Modules to help with loading data from HDF5 format and viewing samples"""
-
 import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+
 from torch.utils.data import DataLoader, Dataset
+from torchvision import datasets
+from PIL import Image
 
 
 class H5Dataset(Dataset):
-    """Dataset of image and label data in HDF5 format.
 
-    Args:
-        path (string) : path to the HDF5 file for train or test
-        transforms (callable, optional): A transforms.Compose([...]) callable
-            to transform or augment the images with before the appropriate
-            transforms for the pretrained base model
-        pretrain_transforms ()
-    """
     def __init__(self, path, transform=None):
         self.file_path = path
         self.images = None
@@ -39,49 +32,33 @@ class H5Dataset(Dataset):
     def __len__(self):
         return self.dataset_len
 
+
 def h5_dataloader(h5_filepath, transform, **kwargs):
-    """Creates a torch.utils.data.DataLoader when supplied with a HDF5 filepath.
-    It is up to user to supply the correct transform for the dataset and model.
-    kwargs includes batch_size, shuffle and num_workers"""
     dataset = H5Dataset(h5_filepath, transform)
     dataloader = DataLoader(dataset, **kwargs)
     return dataloader
 
+def image_dataloader(file_path, transform, **kwargs):
+    folder = datasets.ImageFolder(file_path, transform)
+    return DataLoader(folder, **kwargs)
 
-def view_batch(dataloader, num_samples=16, shape=(4, 4)):
+
+def view_img(dataloader, num_samples=9, shape=(3,3)):
     """View sample images with provided labels from the dataloader"""
     if shape[0]*shape[1] != num_samples:
         raise Exception("incorrect subplot shape, num_samples must equal shape[0]*shape[1]")
 
-    classes = np.array(['plunge', 'spill', 'nonbreaking'])
+    classes = dataloader.dataset.classes
     plt.figure(figsize=(10, 10))
-    dataset = dataloader.dataset
-    rand_indx = np.random.random_integers(0, len(dataset), num_samples)
-    for i, _  in enumerate(dataset):
+    for i, j in enumerate(dataloader.sampler):
         plt.subplot(shape[0], shape[1], i+1)
-        sample_image = dataset.images[rand_indx[i]]
-        sample_label = dataset.labels[rand_indx[i]]
-        plt.imshow(sample_image, cmap='gray')
-        plt.title(f"{classes[sample_label]}")
+        img = Image.open(dataloader.dataset.imgs[j][0])
+        mapp = 'gray' if np.shape(img)[0] != 3 else None
+        plt.imshow(img, cmap=mapp)
+        plt.title(f"{classes[dataloader.dataset.targets[j]]}")
         plt.axis("off")
         if i == (num_samples-1):
             break
-
-def show_trans_batch(dataloader):
-    """View sample images which have been tansformed and randomly sampled
-    from the dataloader"""
-    classes = np.array(['plunge', 'spill', 'nonbreaking'])
-    plt.figure(figsize=(10, 10))
-    for i,(img_batch, lab_batch) in enumerate(dataloader):
-        for j, im in enumerate(img_batch):
-            plt.subplot(4, 4, j+1)
-            plt.imshow(im[0], cmap='gray')
-            plt.title(f"{classes[lab_batch[j].numpy()]}")
-            plt.axis("off")
-            if j == 15:
-                break
-        break
-
 
 def class_weight(dataset):
     """Calculates and returns class weights as a torch.Tensor"""
