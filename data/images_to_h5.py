@@ -1,10 +1,3 @@
-"""Script to convert images in a root directory to h5 file
-format with the respective labels. The root directory must
-contain folders with the class names, these will act as the
-labels
-"""
-
-
 import argparse
 import glob
 import os
@@ -15,7 +8,6 @@ from PIL import Image
 
 
 def find_classes(directory):
-    """Find class labels in the directory"""
     class_paths = glob.glob(directory+"/*")
     classes = []
     for i in class_paths:
@@ -25,29 +17,8 @@ def find_classes(directory):
     classes = np.array(classes)
     return classes
 
-def average_shape(image_path):
-    """Calculate average shape of all images in path"""
-    avg_w = 0
-    avg_h = 0
-    # Calculate the average sizes for resize
-    for i in image_path:
-        ith_image = Image.open(i)
-        image_shape = np.shape(np.array(ith_image))
-        #print(f"image shape :\t{image_shape}")
-        avg_w += image_shape[0]
-        avg_h += image_shape[1]
 
-    avg_w = int(avg_w/len(image_path))
-    avg_h = int(avg_h/len(image_path))
-
-    print(f"average width :\t{avg_w}")
-    print(f"average height:\t{avg_h}")
-    image_shape = (avg_w, avg_h)
-    return image_shape
-
-def img_to_h5(directory, h5file, image_shape=None):
-    """Convert all images in a directory to HDF5 format with the appropriate labels.
-    Images must be stored in subfolders with the class labels being the folder name."""
+def img_to_h5(directory, h5file, image_shape):
 
     print(f"search {directory} \nsave to {h5file}")
     classes = find_classes(directory)
@@ -55,10 +26,6 @@ def img_to_h5(directory, h5file, image_shape=None):
     image_path = glob.glob(directory+'/*/*.jpg')
     len_images = len(image_path)
     print(f"images found :\t{len_images}")
-
-    if image_shape[0] is None:
-        print("image shape not supplied, calculating average width and heigth")
-        image_shape = average_shape(image_path)
 
     h5_shape = (len_images, image_shape[0], image_shape[1])
 

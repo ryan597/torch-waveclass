@@ -1,24 +1,15 @@
-"""Modules to help with loading data from HDF5 format and viewing samples"""
-
 import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+
 from torch.utils.data import DataLoader, Dataset
 from torchvision import datasets
 from PIL import Image
 
 
 class H5Dataset(Dataset):
-    """Dataset of image and label data in HDF5 format.
 
-    Args:
-        path (string) : path to the HDF5 file for train or test
-        transforms (callable, optional): A transforms.Compose([...]) callable
-            to transform or augment the images with before the appropriate
-            transforms for the pretrained base model
-        pretrain_transforms ()
-    """
     def __init__(self, path, transform=None):
         self.file_path = path
         self.images = None
@@ -41,16 +32,13 @@ class H5Dataset(Dataset):
     def __len__(self):
         return self.dataset_len
 
+
 def h5_dataloader(h5_filepath, transform, **kwargs):
-    """Creates a torch.utils.data.DataLoader when supplied with a HDF5 filepath.
-    It is up to user to supply the correct transform for the dataset and model.
-    kwargs includes batch_size, shuffle and num_workers"""
     dataset = H5Dataset(h5_filepath, transform)
     dataloader = DataLoader(dataset, **kwargs)
     return dataloader
 
 def image_dataloader(file_path, transform, **kwargs):
-    """Load jpg and png images from file path containing class folders"""
     folder = datasets.ImageFolder(file_path, transform)
     return DataLoader(folder, **kwargs)
 
@@ -71,7 +59,6 @@ def view_img(dataloader, num_samples=9, shape=(3,3)):
         plt.axis("off")
         if i == (num_samples-1):
             break
-
 
 def class_weight(dataset):
     """Calculates and returns class weights as a torch.Tensor"""
