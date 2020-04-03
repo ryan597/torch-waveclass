@@ -12,7 +12,7 @@ def class_report(model, criterion, dataloader):
 
     batch_size = dataloader.batch_size
     size_dataset = len(dataloader.dataset)
-    num_classes = len(dataloader.dataset.classes)
+    num_classes = 3
     true_labels = torch.zeros(size_dataset).to(DEVICE)
     output_full = torch.zeros((size_dataset, num_classes)).to(DEVICE)
 
@@ -46,7 +46,7 @@ def class_report(model, criterion, dataloader):
 
     return loss, auc
 
-def print_class_stat(outputs, labels):
+def print_class_stat(outputs, labels, epoch, step, loss):
 
     class_correct = np.zeros(3)
     class_total = np.zeros(3)
@@ -62,4 +62,13 @@ def print_class_stat(outputs, labels):
     overall_accuracy = 100 * np.sum(class_correct) / np.sum(class_total)
     average_accuracy = 100./3 * np.sum((class_correct/class_total))
 
-    return overall_accuracy, average_accuracy
+    # one hot encode for roc_auc_score
+    one_hot_labels = np.zeros((len(labels), 3))
+    for i, value in enumerate(labels):
+        one_hot_labels[i, value] = 1
+
+    auc = roc_auc_score(one_hot_labels, outputs, multi_class='ovo')
+    print(f"Epoch {epoch}\t| Step {step}\t | loss {loss}\t" + \
+          f"Acc : {overall_accuracy:.3f} || {average_accuracy:.3f}\t AUC : {auc}")
+
+    return auc

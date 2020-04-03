@@ -31,7 +31,7 @@ def get_transform_HDF5(augment=False, image_shape=(224, 224)):
     if augment:
         preprocess_transform = T.Compose([
             T.ToPILImage(),
-            T.RandomRotation(degrees=15),
+            T.RandomRotation(degrees=15, fill=(0,)),
             T.RandomResizedCrop(size=image_shape, scale=(0.8, 1.0)),
             T.ColorJitter(0.1, 0.1)
         ])

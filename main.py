@@ -6,29 +6,24 @@
 ################################################################################
 #                   TO-DO:
 # Generalise to both IR and Flow
-# Automatic calculation of class weights
+# Test out RAW + RAW, RAW + FLOW
 # Testing of different arch. & hyper. & augmentations
-# Adding plotting of training history (real time updates)
-# Implememnt early stopping
-# Have some coffee
-# Refactor again...
 ################################################################################
 import argparse
 import time
 import os
 import json
 
-from comet_ml import Experiment
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import matplotlib.pyplot as plt
 
 import my_utils
 from callbacks import callbacks
 from data import transformations
-from models import my_CNNs
-
+from models import ClassifyNet
 
 if torch.cuda.is_available():
     DEVICE = torch.device('cuda:0')
@@ -43,25 +38,26 @@ def train_model(model,
                 train_dataloader,
                 validation_dataloader,
                 criterion,
-                epochs=10,
-                comet_expt=None,
+                config,
                 scheduler=None):
-    """Train the torch.nn.Module for the specified number of epochs, perfoms optimization
-    with respect to the supplied criterion. Saves the model each epoch if the validation
-    loss improves.
-    """
+
     print("\nStarting training...")
     start = time.perf_counter()
     best_loss = np.inf
+    # Arrays to record stats
+    train_loss = []
+    train_auc = []
+    valid_loss = []
+    valid_auc = []
 
-    for epoch in range(epochs):
+    for epoch in range(config['epochs']):
         print(f"Learning rate :\t {scheduler.get_lr()[0]}")
 
         model.train()
-        train_loss = 0.0
+        tmp_loss = 0.0
 
         for i, (inputs, labels) in enumerate(train_dataloader, 0):
-            #inputs, labels = batch
+
             inputs = inputs.to(DEVICE)
             labels = labels.to(DEVICE)
 
@@ -71,57 +67,67 @@ def train_model(model,
             outputs = model(inputs)
             loss = criterion(outputs, labels)
             loss.backward()
-            scheduler.optimizer.step()
+
             # accumulate loss for epoch
-            train_loss += loss.item()
+            tmp_loss += loss.item()
 
             # print every 5 mini-batch steps
             if (i+1) % 5 == 0:
-                train_acc, train_acc_w = callbacks.print_statistics(outputs, labels)
-
-                # LOGGING
-                callbacks.comet_logging(comet_expt,
-                                        ('train_loss', train_loss),
-                                        ('train_acc', train_acc),
-                                        ('train_acc_w', train_acc_w),
-                                        step=i+1,
-                                        epoch=epoch+1)
-
-                print(f"Epoch {epoch+1}\t| Step {i+1}\t| " + \
-                      f"Training loss : {train_loss / 5 :.4f}\t| " + \
-                      f"Training acc : {train_acc:.3f} || {train_acc_w:.3f}")
-                train_loss = 0.0
+                scheduler.optimizer.step()
+                
+                train_auc.append(callbacks.print_class_stat(outputs.detach(), labels,
+                                                    epoch+1, i+1, tmp_loss/5))
+                train_loss.append(tmp_loss/5)
+                tmp_loss = 0.0
 
         scheduler.step()
 
-        # check for overfitting train
-        print("\n\t*** TRAINING REPORT ***")
-        _ = callbacks.class_report(model, criterion, train_dataloader)
         print("\n\t*** VALIDATION REPORT ***")
         val_loss, val_auc = callbacks.class_report(model, criterion, validation_dataloader)
-
-        # LOGGING
-        callbacks.comet_logging(comet_expt,
-                                ('val_loss', val_loss),
-                                ('val_AUC', val_auc),
-                                ('learning_rate', scheduler.get_last_lr()[0]),
-                                epoch=epoch+1)
+        valid_loss.append(val_loss)
+        valid_auc.append(val_auc)
 
         # save on the end of epoch if valid_loss improves
         if val_loss < best_loss:
             torch.save(model.state_dict(),
-                       f"SAVED_MODELS/model_{model.base}_{epoch}_{val_loss:.4f}_{val_auc:.3f}.pth")
+                       f"SAVED_MODELS/{model.base}_{config['data']}.pth")
 
             print(f"Validation loss decreased :\t {best_loss:.4f} to {val_loss:.4f}")
-            print(f"Saved model \tmodel_{model.base}_{epoch}_{val_loss:.4f}_{val_auc:.3f}.pth")
-            # save model as model_{model.base}_best.pth then reload immediately for fine tuning?
             best_loss = val_loss
 
     print("Finished Training")
     end = time.perf_counter()
     print(f"Training time : \t {end - start} seconds")
+    history = {
+        "train_loss" : train_loss,
+        "train_auc" : train_auc,
+        "val_loss" : valid_loss,
+        "val_auc" : valid_auc,
+        "epochs" : epoch,
+        "batches" : len(train_dataloader)
+    }
+    return history
 
+def plot_history(history):
+    x1 = range(history['epochs'] * history['batches']) / history['batches']
+    x2 = range(history['epochs'])
 
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 10))
+    ax1.plot(x1, history['train_loss'], 'b-')
+    ax1.plot(x2, history['valid_loss'], 'r-')
+    ax1.title('Training and Validation loss')
+    ax1.xlabel('Epoch')
+    ax1.ylabel('Loss')
+    ax1.grid(True)
+
+    ax2.plot(x1, history['train_auc'], 'b-')
+    ax2.plot(x2, history['valid_auc'], 'r-')
+    ax2.title('Train and Validation AUC')
+    ax2.xlabel('Epoch')
+    ax2.ylabel('AUC')
+    ax2.grid(True)
+
+    fig.show()
 
 def parse_args():
     """Fetch config_file to use from command line input, defaults to resnet18 config"""
@@ -142,39 +148,35 @@ def parse_args():
     return config_filename
 
 
-def main(config, comet_expt=None):
-    """Fetch program settings from supplied config dictionary, get transforms for
-    preprocessing images and load the datasets.  Then loads the CNN model specified
-    in the config and begins training."""
+def main(config):
 
     # import the image transformations (augmentations and preprocessing pretrained)
-    augment = transformations.get_transform(augment=True, image_shape=config['image_shape'])
-    no_augs = transformations.get_transform(image_shape=config['image_shape'])
+    augment = transformations.get_transform_HDF5(augment=True, image_shape=config['image_shape'])
+    no_augs = transformations.get_transform_HDF5(image_shape=config['image_shape'])
 
-    train = my_utils.image_dataloader(config['train'], transform=augment,
+    train = my_utils.h5_dataloader(config['train'], transform=augment,
                                       batch_size=config['batch_size'], shuffle=True)
 
-    valid = my_utils.image_dataloader(config['valid'], transform=no_augs,
+    valid = my_utils.h5_dataloader(config['valid'], transform=no_augs,
                                       batch_size=config['val_batch_size'], shuffle=False)
 
-    #test = my_utils.h5_dataloader("H5_files/test.h5", transform=no_augs,
+    #test = my_utils.h5_dataloader(config['test'], transform=no_augs,
     #                              batch_size=config['val_batch_size'], shuffle=False)
 
-    model = my_CNNs.Net(config)
+    model = ClassifyNet.ClassifyNet(config)
     model = model.to(DEVICE)
 
     class_weights = my_utils.class_weight(train.dataset).to(DEVICE)
     criterion = nn.CrossEntropyLoss(weight=class_weights).to(DEVICE)
 
     optimizer = optim.AdamW(model.parameters(), lr=0.01)
-    scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer,
-                                                               T_0=5,
-                                                               T_mult=2)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer,
+                                                     T_max=config['epochs'])
 
+    history = train_model(model, train, valid, criterion,
+                config, scheduler=scheduler)
 
-    train_model(model, train, valid, criterion, epochs=config['initial_epochs'],
-                comet_expt=comet_expt, scheduler=scheduler)
-
+    plot_history(history)
 
 
 ################################################################################
@@ -190,7 +192,4 @@ if __name__ == "__main__":
     for value in CONFIG:
         print(f"{value} \t: {CONFIG[value]}")
 
-    COMET_EXPT = Experiment(project_name="waveclass", workspace="ryan597")
-    COMET_EXPT.log_parameters(CONFIG)
-
-    main(CONFIG, COMET_EXPT)
+    main(CONFIG)
