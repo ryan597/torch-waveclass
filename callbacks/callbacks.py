@@ -66,8 +66,12 @@ def print_class_stat(outputs, labels, epoch, step, loss):
     one_hot_labels = np.zeros((len(labels), 3))
     for i, value in enumerate(labels):
         one_hot_labels[i, value] = 1
+    
+    if len(np.unique(labels)) != 1:
+        auc = roc_auc_score(one_hot_labels, outputs, multi_class='ovo')
+    else:
+        auc = 0.0
 
-    auc = roc_auc_score(one_hot_labels, outputs, multi_class='ovo')
     print(f"Epoch {epoch}\t| Step {step}\t | loss {loss}\t" + \
           f"Acc : {overall_accuracy:.3f} || {average_accuracy:.3f}\t AUC : {auc}")
 

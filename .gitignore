@@ -2,11 +2,9 @@
 *.swp
 __pycache__/
 IMGS
-SAVED_MODELS
 H5_files
-flow
-spyflow
+SAVED_MODELS
 PLOTS
-setting.json
+settings.json
 .gitignore
 *.ipynb
